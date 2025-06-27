@@ -18,6 +18,16 @@ function isBranchOwnedBy($conn, $branch_id, $owner_id) {
     return $owned;
 }
 
+function isCategoryOwnedBy($conn, $category_id, $owner_id) {
+    $stmt = $conn->prepare("SELECT id FROM categories WHERE id = ? AND owner_id = ?");
+    $stmt->bind_param("ii", $category_id, $owner_id);
+    $stmt->execute();
+    $stmt->store_result();
+    $owned = $stmt->num_rows > 0;
+    $stmt->close();
+    return $owned;
+}
+
 // Handle POST requests (create/update/delete)
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     header('Content-Type: application/json');
@@ -44,12 +54,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Validate inputs
     $id = (int)($_POST['id'] ?? 0);
     $branch_id = (int)($_POST['branch_id'] ?? 0);
+    $category_id = (int)($_POST['category_id'] ?? 0);
     $name = trim($_POST['name'] ?? '');
     $description = trim($_POST['description'] ?? '');
     $price = $_POST['price'] ?? '';
     $quantity = $_POST['quantity'] ?? '';
-    
-    if (!$branch_id || !$name || !is_numeric($price) || !is_numeric($quantity)) {
+    $unit = trim($_POST['unit'] ?? '');
+
+    if (!$branch_id || !$category_id || !$name || !is_numeric($price) || !is_numeric($quantity) || !$unit) {
         echo json_encode(['status' => 'error', 'message' => 'Please fill in all required fields correctly']);
         exit;
     }
@@ -57,10 +69,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         echo json_encode(['status' => 'error', 'message' => 'Invalid branch selected']);
         exit;
     }
+    if (!isCategoryOwnedBy($conn, $category_id, $owner_id)) {
+        echo json_encode(['status' => 'error', 'message' => 'Invalid category selected']);
+        exit;
+    }
     $price = floatval($price);
     $quantity = intval($quantity);
     if ($price < 0 || $quantity < 0) {
         echo json_encode(['status' => 'error', 'message' => 'Price and quantity cannot be negative']);
+        exit;
+    }
+    $allowed_units = ['Gram', 'Milligram', 'Kilogram', 'Liter', 'Milliliter', 'Piece', 'Dozen', 'Other'];
+    if (!in_array($unit, $allowed_units)) {
+        echo json_encode(['status' => 'error', 'message' => 'Invalid unit selected']);
         exit;
     }
 
@@ -87,7 +108,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($id > 0) {
         // Update
-        // Get old image if exists
         $stmt = $conn->prepare("SELECT image FROM products p INNER JOIN branches b ON p.branch_id = b.id WHERE p.id = ? AND b.owner_id = ?");
         $stmt->bind_param("ii", $id, $owner_id);
         $stmt->execute();
@@ -104,16 +124,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             unlink(__DIR__ . '/images/' . $oldImage);
         }
 
-        $sql = "UPDATE products SET branch_id = ?, name = ?, description = ?, price = ?, quantity = ?";
+        $sql = "UPDATE products SET branch_id = ?, category_id = ?, name = ?, description = ?, price = ?, quantity = ?, unit = ?";
         if ($imageName) $sql .= ", image = ?";
         $sql .= " WHERE id = ?";
 
         if ($imageName) {
             $stmt = $conn->prepare($sql);
-            $stmt->bind_param("issdisi", $branch_id, $name, $description, $price, $quantity, $imageName, $id);
+            $stmt->bind_param("iissdiss", $branch_id, $category_id, $name, $description, $price, $quantity, $unit, $imageName, $id);
         } else {
             $stmt = $conn->prepare($sql);
-            $stmt->bind_param("issdii", $branch_id, $name, $description, $price, $quantity, $id);
+            $stmt->bind_param("iissdisi", $branch_id, $category_id, $name, $description, $price, $quantity, $unit, $id);
         }
         if ($stmt->execute()) {
             echo json_encode(['status' => 'success', 'message' => 'Product updated successfully']);
@@ -135,8 +155,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit;
         }
 
-        $stmt = $conn->prepare("INSERT INTO products (branch_id, barcode_id, name, description, price, quantity, image, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, NOW())");
-        $stmt->bind_param("isssdis", $branch_id, $barcode, $name, $description, $price, $quantity, $imageName);
+        $stmt = $conn->prepare("INSERT INTO products (branch_id, category_id, barcode_id, name, description, price, quantity, unit, image, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())");
+        $stmt->bind_param("iisssdiss", $branch_id, $category_id, $barcode, $name, $description, $price, $quantity, $unit, $imageName);
         if ($stmt->execute()) {
             echo json_encode(['status' => 'success', 'message' => 'Product created successfully']);
         } else {
@@ -151,7 +171,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $id = (int)($_GET['id'] ?? 0);
 $product = null;
 if ($id > 0) {
-    // Fetch product for editing
     $sql = "SELECT p.*, b.owner_id FROM products p INNER JOIN branches b ON p.branch_id = b.id WHERE p.id = ? AND b.owner_id = ?";
     $stmt = $conn->prepare($sql);
     $stmt->bind_param("ii", $id, $owner_id);
@@ -165,13 +184,20 @@ if ($id > 0) {
     }
 }
 
-// Fetch branches again for dropdown
+// Fetch branches and categories for dropdowns
 $stmt = $conn->prepare("SELECT id, name FROM branches WHERE owner_id = ? ORDER BY name");
 $stmt->bind_param("i", $owner_id);
 $stmt->execute();
 $branches = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 $stmt->close();
 
+$stmt = $conn->prepare("SELECT id, name FROM categories WHERE owner_id = ? ORDER BY name");
+$stmt->bind_param("i", $owner_id);
+$stmt->execute();
+$categories = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+$stmt->close();
+
+$units = ['Gram', 'Milligram', 'Kilogram', 'Liter', 'Milliliter', 'Piece', 'Dozen', 'Other'];
 ?>
 
 <div class="modal fade" id="productModal" tabindex="-1" aria-labelledby="productModalLabel" aria-hidden="true" data-bs-backdrop="static">
@@ -199,6 +225,19 @@ $stmt->close();
         </div>
 
         <div class="mb-3">
+            <label for="category_id" class="form-label">Category *</label>
+            <select class="form-select" id="category_id" name="category_id" required>
+                <option value="">Select category</option>
+                <?php foreach ($categories as $c): ?>
+                    <option value="<?= $c['id'] ?>" <?= $product && $product['category_id'] == $c['id'] ? 'selected' : '' ?>>
+                        <?= htmlspecialchars($c['name']) ?>
+                    </option>
+                <?php endforeach; ?>
+            </select>
+            <div class="invalid-feedback">Please select a category.</div>
+        </div>
+
+        <div class="mb-3">
             <label for="name" class="form-label">Product Name *</label>
             <input type="text" class="form-control" id="name" name="name" required maxlength="255" value="<?= $product ? htmlspecialchars($product['name']) : '' ?>">
             <div class="invalid-feedback">Please enter product name.</div>
@@ -210,7 +249,7 @@ $stmt->close();
         </div>
 
         <div class="mb-3">
-            <label for="price" class="form-label">Price (USD) *</label>
+            <label for="price" class="form-label">Price (RS) *</label>
             <input type="number" step="0.01" min="0" class="form-control" id="price" name="price" required value="<?= $product ? htmlspecialchars($product['price']) : '' ?>">
             <div class="invalid-feedback">Please enter a valid price.</div>
         </div>
@@ -219,6 +258,19 @@ $stmt->close();
             <label for="quantity" class="form-label">Quantity *</label>
             <input type="number" min="0" class="form-control" id="quantity" name="quantity" required value="<?= $product ? htmlspecialchars($product['quantity']) : '0' ?>">
             <div class="invalid-feedback">Please enter available quantity.</div>
+        </div>
+
+        <div class="mb-3">
+            <label for="unit" class="form-label">Unit *</label>
+            <select class="form-select" id="unit" name="unit" required>
+                <option value="">Select unit</option>
+                <?php foreach ($units as $u): ?>
+                    <option value="<?= $u ?>" <?= $product && $product['unit'] == $u ? 'selected' : '' ?>>
+                        <?= htmlspecialchars($u) ?>
+                    </option>
+                <?php endforeach; ?>
+            </select>
+            <div class="invalid-feedback">Please select a unit.</div>
         </div>
 
         <div class="mb-3">
@@ -249,28 +301,3 @@ $stmt->close();
     </form>
   </div>
 </div>
-
-<script>
-document.getElementById('productForm').addEventListener('submit', async function(e) {
-    e.preventDefault();
-    const form = e.target;
-    if (!form.checkValidity()) {
-        form.classList.add('was-validated');
-        return;
-    }
-    const formData = new FormData(form);
-    const response = await fetch('path_to_this_php_file.php', {
-        method: 'POST',
-        body: formData
-    });
-    const result = await response.json();
-    alert(result.message);
-    if (result.status === 'success') {
-        // Close modal and refresh product list (implement as needed)
-        var modal = bootstrap.Modal.getInstance(document.getElementById('productModal'));
-        modal.hide();
-        // Reload products list here
-        location.reload();
-    }
-});
-</script>

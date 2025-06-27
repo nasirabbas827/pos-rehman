@@ -166,7 +166,7 @@ $result_products = mysqli_stmt_get_result($stmt_products);
                     <th><i class="fas fa-image me-1"></i>Image</th>
                     <th><i class="fas fa-box me-1"></i>Name</th>
                     <th><i class="fas fa-file-alt me-1"></i>Description</th>
-                    <th><i class="fas fa-dollar-sign me-1"></i>Price ($)</th>
+                    <th><i class="fas fa-rupee-sign me-1"></i> Price</th>
                     <th><i class="fas fa-cubes me-1"></i>Quantity</th>
                     <th><i class="fas fa-store-alt me-1"></i>Branch</th>
                 </tr>

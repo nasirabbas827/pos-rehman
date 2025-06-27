@@ -257,70 +257,81 @@ $stmt->close();
             </tbody>
         </table>
 
-        <!-- Summary cards -->
-        <div class="row g-4 mb-5">
-            <div class="col-md-3">
-                <div class="card shadow-sm text-center">
-                    <div class="card-body">
-                        <h5 class="card-title"><i class="fas fa-store-alt me-2"></i>Branches</h5>
-                        <p class="display-6 text-primary"><?= $totalBranches ?></p>
-                    </div>
-                </div>
+<!-- Summary cards -->
+<div class="row g-4 mb-5">
+    <div class="col-md-3">
+        <div class="card shadow-sm text-center">
+            <div class="card-header bg-primary text-white">
+                <h5 class="card-title m-0"><i class="fas fa-store-alt me-2"></i>Branches</h5>
             </div>
-            <div class="col-md-3">
-                <div class="card shadow-sm text-center">
-                    <div class="card-body">
-                        <h5 class="card-title"><i class="fas fa-user-tie me-2"></i>Managers</h5>
-                        <p class="display-6 text-warning"><?= $countManagers ?></p>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="card shadow-sm text-center">
-                    <div class="card-body">
-                        <h5 class="card-title"><i class="fas fa-boxes me-2"></i>Products</h5>
-                        <p class="display-6 text-success"><?= $countProducts ?></p>
-                    </div>
-                </div>
+            <div class="card-body">
+                <p class="display-6 text-primary"><?= $totalBranches ?></p>
             </div>
         </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card shadow-sm text-center">
+            <div class="card-header bg-warning text-dark">
+                <h5 class="card-title m-0"><i class="fas fa-user-tie me-2"></i>Managers</h5>
+            </div>
+            <div class="card-body">
+                <p class="display-6 text-warning"><?= $countManagers ?></p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card shadow-sm text-center">
+            <div class="card-header bg-success text-white">
+                <h5 class="card-title m-0"><i class="fas fa-boxes me-2"></i>Products</h5>
+            </div>
+            <div class="card-body">
+                <p class="display-6 text-success"><?= $countProducts ?></p>
+            </div>
+        </div>
+    </div>
+</div>
 
-        <!-- Branches preview -->
-        <h4>Branches</h4>
-        <div class="row row-cols-1 row-cols-md-3 g-3 mb-5">
-            <?php foreach ($branches as $branch): ?>
-                <div class="col">
-                    <div class="card shadow-sm h-100">
-                        <div class="card-body">
-                            <h5 class="card-title"><i class="fas fa-store-alt me-2"></i> <?= htmlspecialchars($branch['name']) ?></h5>
-                            <p class="card-text"><small class="text-muted">Branch ID: <?= $branch['id'] ?></small></p>
-                        </div>
-                    </div>
+<!-- Branches preview -->
+<h4>Branches</h4>
+<div class="row row-cols-1 row-cols-md-3 g-3 mb-5">
+    <?php foreach ($branches as $branch): ?>
+        <div class="col">
+            <div class="card shadow-sm h-100">
+                <div class="card-header bg-info text-white">
+                    <h5 class="card-title m-0"><i class="fas fa-store-alt me-2"></i> <?= htmlspecialchars($branch['name']) ?></h5>
                 </div>
-            <?php endforeach; ?>
-            <?php if (empty($branches)): ?>
-                <p class="text-muted">No branches found.</p>
-            <?php endif; ?>
+                <div class="card-body">
+                    <p class="card-text"><small class="text-muted">Branch ID: <?= $branch['id'] ?></small></p>
+                </div>
+            </div>
         </div>
+    <?php endforeach; ?>
+    <?php if (empty($branches)): ?>
+        <p class="text-muted">No branches found.</p>
+    <?php endif; ?>
+</div>
 
-        <!-- Managers preview -->
-        <h4>Recent Managers</h4>
-        <div class="row row-cols-1 row-cols-md-3 g-3 mb-5">
-            <?php foreach ($managers as $manager): ?>
-                <div class="col">
-                    <div class="card shadow-sm h-100">
-                        <div class="card-body">
-                            <h5 class="card-title"><i class="fas fa-user-tie me-2"></i> <?= htmlspecialchars($manager['full_name']) ?></h5>
-                            <p class="card-text"><i class="fas fa-envelope me-1"></i> <?= htmlspecialchars($manager['email']) ?></p>
-                            <p class="card-text"><small class="text-muted">Branch: <?= htmlspecialchars($manager['branch_name']) ?></small></p>
-                        </div>
-                    </div>
+<!-- Managers preview -->
+<h4>Recent Managers</h4>
+<div class="row row-cols-1 row-cols-md-3 g-3 mb-5">
+    <?php foreach ($managers as $manager): ?>
+        <div class="col">
+            <div class="card shadow-sm h-100">
+                <div class="card-header bg-secondary text-white">
+                    <h5 class="card-title m-0"><i class="fas fa-user-tie me-2"></i> <?= htmlspecialchars($manager['full_name']) ?></h5>
                 </div>
-            <?php endforeach; ?>
-            <?php if (empty($managers)): ?>
-                <p class="text-muted">No managers found.</p>
-            <?php endif; ?>
+                <div class="card-body">
+                    <p class="card-text"><i class="fas fa-envelope me-1"></i> <?= htmlspecialchars($manager['email']) ?></p>
+                    <p class="card-text"><small class="text-muted">Branch: <?= htmlspecialchars($manager['branch_name']) ?></small></p>
+                </div>
+            </div>
         </div>
+    <?php endforeach; ?>
+    <?php if (empty($managers)): ?>
+        <p class="text-muted">No managers found.</p>
+    <?php endif; ?>
+</div>
+
 
         <!-- Products preview -->
         <h4>Recent Products</h4>
@@ -335,7 +346,7 @@ $stmt->close();
                         <?php endif; ?>
                         <div class="card-body">
                             <h5 class="card-title"><i class="fas fa-box me-2"></i> <?= htmlspecialchars($product['name']) ?></h5>
-                            <p class="card-text">$<?= number_format($product['price'], 2) ?> | Qty: <?= (int)$product['quantity'] ?></p>
+                            <p class="card-text">RS: <?= number_format($product['price'], 2) ?> | Qty: <?= (int)$product['quantity'] ?></p>
                             <p class="card-text"><small class="text-muted">Branch: <?= htmlspecialchars($product['branch_name']) ?></small></p>
                         </div>
                     </div>

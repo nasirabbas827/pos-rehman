@@ -15,11 +15,20 @@ $stmt->execute();
 $branches = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 $stmt->close();
 
-// Fetch products with branch info (only branches owned by owner)
+// Fetch categories for dropdown
+$stmt = $conn->prepare("SELECT id, name FROM categories WHERE owner_id = ? ORDER BY name");
+$stmt->bind_param("i", $owner_id);
+$stmt->execute();
+$categories = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+$stmt->close();
+
+// Fetch products with branch and category info (only for owner)
 $sql = "
-    SELECT p.id, p.barcode_id, p.name, p.description, p.price, p.quantity, p.image, p.created_at, b.name AS branch_name
+    SELECT p.id, p.barcode_id, p.name, p.description, p.price, p.quantity, p.unit, p.image, p.created_at, 
+           b.name AS branch_name, c.name AS category_name
     FROM products p
     INNER JOIN branches b ON p.branch_id = b.id
+    INNER JOIN categories c ON p.category_id = c.id
     WHERE b.owner_id = ?
     ORDER BY p.created_at DESC
 ";
@@ -72,6 +81,8 @@ $conn->close();
                 <th>Description</th>
                 <th>Price</th>
                 <th>Qty</th>
+                <th>Unit</th>
+                <th>Category</th>
                 <th>Branch</th>
                 <th>Created At</th>
                 <th style="width: 120px;">Actions</th>
@@ -79,7 +90,7 @@ $conn->close();
         </thead>
         <tbody id="productsTableBody">
             <?php if (count($products) === 0): ?>
-                <tr><td colspan="9" class="text-center">No products found.</td></tr>
+                <tr><td colspan="11" class="text-center">No products found.</td></tr>
             <?php else: ?>
                 <?php foreach ($products as $p): ?>
                     <tr data-id="<?= $p['id'] ?>">
@@ -87,8 +98,10 @@ $conn->close();
                         <td><?= htmlspecialchars($p['barcode_id']) ?></td>
                         <td><?= htmlspecialchars($p['name']) ?></td>
                         <td><?= htmlspecialchars(strlen($p['description']) > 40 ? substr($p['description'], 0, 40).'...' : $p['description']) ?></td>
-                        <td>$<?= number_format($p['price'], 2) ?></td>
+                        <td><?= number_format($p['price'], 2) ?></td>
                         <td><?= (int)$p['quantity'] ?></td>
+                        <td><?= htmlspecialchars($p['unit']) ?></td>
+                        <td><?= htmlspecialchars($p['category_name']) ?></td>
                         <td><?= htmlspecialchars($p['branch_name']) ?></td>
                         <td><?= htmlspecialchars($p['created_at']) ?></td>
                         <td>
@@ -189,7 +202,7 @@ document.querySelectorAll('.btn-delete').forEach(btn => {
                 const row = document.querySelector(`tr[data-id="${id}"]`);
                 if (row) row.remove();
                 if (document.querySelectorAll('#productsTableBody tr').length === 0) {
-                    document.getElementById('productsTableBody').innerHTML = '<tr><td colspan="9" class="text-center">No products found.</td></tr>';
+                    document.getElementById('productsTableBody').innerHTML = '<tr><td colspan="11" class="text-center">No products found.</td></tr>';
                 }
             } else {
                 showAlert(data.message, 'danger');

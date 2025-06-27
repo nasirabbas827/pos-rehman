@@ -126,7 +126,7 @@ $conn->close();
             <?php else: ?>
                 <?php foreach ($branches as $branch): ?>
                     <tr data-id="<?= $branch['id'] ?>">
-                        <td class="branch-name"><?= htmlspecialchars($branch['name']) ?></td>
+                        <td class="branch-name"><a href="branch_products.php?branch_id=<?= $branch['id'] ?>" class="text-decoration-none"><?= htmlspecialchars($branch['name']) ?></a></td>
                         <td class="branch-location"><?= htmlspecialchars($branch['location']) ?></td>
                         <td><?= htmlspecialchars($branch['created_at']) ?></td>
                         <td>
