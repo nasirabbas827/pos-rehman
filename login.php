@@ -7,8 +7,9 @@ $email_err = $password_err = $role_err = $login_msg = "";
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
-    // Validate role
-    if (empty($_POST["role"]) || !in_array($_POST["role"], ['owner', 'manager'])) {
+    // --- 1. Validate role: ADD 'salesperson' to the valid roles ---
+    $valid_roles = ['owner', 'manager', 'salesperson'];
+    if (empty($_POST["role"]) || !in_array($_POST["role"], $valid_roles)) {
         $role_err = "Please select a valid role.";
     } else {
         $role = $_POST["role"];
@@ -28,50 +29,70 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $password = trim($_POST["password"]);
     }
 
-    // If no errors, check credentials
-if (empty($email_err) && empty($password_err) && empty($role_err)) {
-    if ($role === 'owner') {
-        $sql = "SELECT id, email, password, status FROM users WHERE email = ?";
-        $redirect_url = "owner/owner_dashboard.php";
-    } else if ($role === 'manager') {
-        $sql = "SELECT id, email, password FROM managers WHERE email = ?";
-        $redirect_url = "manager/manager_dashboard.php";
-    }
+    // --- 2. If no errors, check credentials ---
+    if (empty($email_err) && empty($password_err) && empty($role_err)) {
+        $sql = "";
+        $redirect_url = "";
+        $is_owner = false;
 
-    $stmt = mysqli_prepare($conn, $sql);
-    mysqli_stmt_bind_param($stmt, "s", $param_email);
-    $param_email = $email;
-    mysqli_stmt_execute($stmt);
-    mysqli_stmt_store_result($stmt);
-
-    if (mysqli_stmt_num_rows($stmt) == 1) {
         if ($role === 'owner') {
-            mysqli_stmt_bind_result($stmt, $id, $email, $hashed_password, $status);
-        } else {
-            mysqli_stmt_bind_result($stmt, $id, $email, $hashed_password);
+            $sql = "SELECT id, email, password, status FROM users WHERE email = ?";
+            $redirect_url = "owner/owner_dashboard.php";
+            $is_owner = true;
+        } else if ($role === 'manager') {
+            $sql = "SELECT id, email, password FROM managers WHERE email = ?";
+            $redirect_url = "manager/manager_dashboard.php";
+        } else if ($role === 'salesperson') { // ADDED SALESPERSON LOGIC
+            $sql = "SELECT id, email, password FROM salespersons WHERE email = ?";
+            $redirect_url = "salesperson/salesperson_dashboard.php";
         }
 
-        if (mysqli_stmt_fetch($stmt)) {
-            if ($role === 'owner' && $status !== 'approved') {
-                $login_msg = "Your account is not approved yet. Current status: $status.";
-            } elseif (password_verify($password, $hashed_password)) {
-                $_SESSION["id"] = $id;
-                $_SESSION["email"] = $email;
-                $_SESSION["role"] = $role;
-                header("Location: " . $redirect_url);
-                exit();
+        if (!empty($sql)) {
+            $stmt = mysqli_prepare($conn, $sql);
+            
+            // Handle binding for owner (which includes 'status') vs. others
+            mysqli_stmt_bind_param($stmt, "s", $param_email);
+            $param_email = $email;
+            mysqli_stmt_execute($stmt);
+            mysqli_stmt_store_result($stmt);
+
+            if (mysqli_stmt_num_rows($stmt) == 1) {
+                if ($is_owner) {
+                    mysqli_stmt_bind_result($stmt, $id, $email, $hashed_password, $status);
+                } else {
+                    // Manager and Salesperson tables only have id, email, password
+                    mysqli_stmt_bind_result($stmt, $id, $email, $hashed_password);
+                }
+
+                if (mysqli_stmt_fetch($stmt)) {
+                    if ($role === 'owner' && $status !== 'approved') {
+                        $login_msg = "Your account is not approved yet. Current status: $status.";
+                    } elseif (password_verify($password, $hashed_password)) {
+                        // Success! Store session variables and redirect
+                        $_SESSION["id"] = $id;
+                        $_SESSION["email"] = $email;
+                        $_SESSION["role"] = $role;
+                        header("Location: " . $redirect_url);
+                        exit();
+                    } else {
+                        $password_err = "The password you entered is incorrect.";
+                    }
+                }
             } else {
-                $password_err = "The password you entered is incorrect.";
+                $email_err = "No account found with that email for the selected role.";
             }
+            mysqli_stmt_close($stmt);
+        } else {
+            // Should not happen if validation is correct
+            $role_err = "Invalid role selected.";
         }
-    } else {
-        $email_err = "No account found with that email.";
     }
-    mysqli_stmt_close($stmt);
-}
 
 
-    mysqli_close($conn);
+    // Close connection outside the successful login block
+    if (isset($conn)) {
+        mysqli_close($conn);
+    }
 }
 ?>
 
@@ -223,6 +244,7 @@ if (empty($email_err) && empty($password_err) && empty($role_err)) {
                                     <option value="">Select Role</option>
                                     <option value="owner" <?php echo ($role === 'owner') ? 'selected' : ''; ?>>Shop Owner</option>
                                     <option value="manager" <?php echo ($role === 'manager') ? 'selected' : ''; ?>>Manager</option>
+                                    <option value="salesperson" <?php echo ($role === 'salesperson') ? 'selected' : ''; ?>>Salesperson</option>
                                 </select>
                                 <div class="invalid-feedback"><?php echo $role_err; ?></div>
                             </div>
@@ -256,5 +278,3 @@ if (empty($email_err) && empty($password_err) && empty($role_err)) {
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
-
-

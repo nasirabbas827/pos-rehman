@@ -1,4 +1,5 @@
 <?php
+// Configuration, PHPMailer includes, and function definitions are kept the same.
 include('config.php');
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
@@ -7,18 +8,20 @@ require './PHPMailer/src/Exception.php';
 require './PHPMailer/src/PHPMailer.php';
 require './PHPMailer/src/SMTP.php';
 
-$name = $email = $password = $shop_name = "";
-$name_err = $email_err = $password_err = "";
+$name = $email = $password = $confirm_password = $phone_number = $shop_name = "";
+$name_err = $email_err = $password_err = $confirm_password_err = $phone_number_err = "";
 $registration_msg = "";
 
 // Validation functions
 function isValidName($name) {
     return preg_match('/^[a-zA-Z_\- ]+$/', $name);
 }
+// Updated Email Regex for better format validation
 function isValidEmail($email) {
-    return preg_match('/^[a-zA-Z0-9._%+-]+@gmail\.com$/', $email);
+    return filter_var($email, FILTER_VALIDATE_EMAIL) && str_ends_with($email, '@gmail.com');
 }
 function isValidPassword($password) {
+    // Min 8 chars, 1 uppercase, 1 lowercase, 1 number, 1 special char.
     return preg_match('/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{8,}$/', $password);
 }
 function sendVerificationEmail($email) {
@@ -56,7 +59,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     // Validate email
     if (empty(trim($_POST["email"])) || !isValidEmail($_POST["email"])) {
-        $email_err = "Enter a valid @gmail.com email.";
+        $email_err = "Please enter a valid email address ending with @gmail.com.";
     } else {
         $email = trim($_POST["email"]);
         $sql = "SELECT id FROM users WHERE email = ?";
@@ -69,6 +72,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
         mysqli_stmt_close($stmt);
     }
+    
+    // Validate phone number
+    $phone_number = trim($_POST["phone_number"]);
+    if (empty($phone_number)) {
+        $phone_number_err = "Please enter your phone number.";
+    } 
 
     // Validate password
     if (empty(trim($_POST["password"])) || !isValidPassword($_POST["password"])) {
@@ -76,14 +85,24 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     } else {
         $password = trim($_POST["password"]);
     }
+    
+    // Validate confirm password
+    $confirm_password = trim($_POST["confirm_password"]);
+    if (empty($confirm_password)) {
+        $confirm_password_err = "Please confirm your password.";
+    } elseif ($password !== $confirm_password) {
+        $confirm_password_err = "Passwords do not match.";
+    }
 
     $shop_name = trim($_POST["shop_name"]) ?: null;
 
-    if (empty($name_err) && empty($email_err) && empty($password_err)) {
-        $sql = "INSERT INTO users (name, email, password, shop_name, status) VALUES (?, ?, ?, ?, 'pending')";
+    if (empty($name_err) && empty($email_err) && empty($password_err) && empty($confirm_password_err) && empty($phone_number_err)) {
+        // Updated SQL to include 'phone_number'
+        $sql = "INSERT INTO users (name, email, password, phone_number, shop_name, status) VALUES (?, ?, ?, ?, ?, 'pending')";
         $stmt = mysqli_prepare($conn, $sql);
         $hashed_password = password_hash($password, PASSWORD_DEFAULT);
-        mysqli_stmt_bind_param($stmt, "ssss", $name, $email, $hashed_password, $shop_name);
+        // Updated bind_param to include the phone number
+        mysqli_stmt_bind_param($stmt, "sssss", $name, $email, $hashed_password, $phone_number, $shop_name);
 
         if (mysqli_stmt_execute($stmt)) {
             sendVerificationEmail($email);
@@ -106,6 +125,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     <title>User Registration</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.13/css/intlTelInput.css" />
     <style>
         body { background-color: #e6effc; font-family: Arial, sans-serif; margin: 0; padding: 0; }
         .container { padding: 2rem 1rem; max-width: 100%; }
@@ -124,12 +144,17 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         .login-link { font-size: 0.95rem; color: #333; text-align: center; }
         .login-link a { color: #007bff; text-decoration: none; }
         .login-link a:hover { text-decoration: underline; }
-        @media (max-width: 576px) {
-            .card-body { padding: 1rem; }
-            .card h3 { font-size: 1.25rem; }
-            .form-label { font-size: 0.85rem; }
-            .input-group-text i { font-size: 0.85rem; }
-        }
+        
+        /* Styles for password strength meter and phone input */
+        .password-meter-bar { height: 5px; margin-top: 5px; border-radius: 3px; }
+        .weak { background-color: #f00; width: 25%; }
+        .medium { background-color: #ffc107; width: 50%; }
+        .strong { background-color: #28a745; width: 100%; }
+        .input-group-text.password-toggle { cursor: pointer; }
+        
+        /* intl-tel-input integration */
+        .iti { width: 100%; }
+        .iti__flag-container { border-radius: 5px 0 0 5px; }
     </style>
 </head>
 <body>
@@ -138,31 +163,55 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         <div class="card-body">
             <h3>Register</h3>
             <?php echo $registration_msg; ?>
-            <form method="post" novalidate>
+            <form method="post" novalidate onsubmit="return validateForm()">
+                
                 <div class="mb-3 position-relative">
                     <label for="name" class="form-label">Full Name</label>
                     <div class="input-group">
                         <span class="input-group-text"><i class="fas fa-user"></i></span>
-                        <input type="text" id="name" name="name" class="form-control <?php echo (!empty($name_err)) ? 'is-invalid' : ''; ?>" value="<?php echo htmlspecialchars($name); ?>" placeholder="Enter your full name" />
+                        <input type="text" id="name" name="name" class="form-control <?php echo (!empty($name_err)) ? 'is-invalid' : ''; ?>" value="<?php echo htmlspecialchars($name); ?>" placeholder="Enter your full name" required />
                         <div class="invalid-feedback"><?php echo $name_err; ?></div>
                     </div>
                 </div>
+                
                 <div class="mb-3 position-relative">
-                    <label for="email" class="form-label">Email</label>
+                    <label for="email" class="form-label">Email Address</label>
                     <div class="input-group">
                         <span class="input-group-text"><i class="fas fa-envelope"></i></span>
-                        <input type="email" id="email" name="email" class="form-control <?php echo (!empty($email_err)) ? 'is-invalid' : ''; ?>" value="<?php echo htmlspecialchars($email); ?>" placeholder="Enter your email" />
+                        <input type="email" id="email" name="email" class="form-control <?php echo (!empty($email_err)) ? 'is-invalid' : ''; ?>" value="<?php echo htmlspecialchars($email); ?>" placeholder="Enter your @gmail.com email" required />
                         <div class="invalid-feedback"><?php echo $email_err; ?></div>
                     </div>
                 </div>
+
+                <div class="mb-3 position-relative">
+                    <label for="phone_number" class="form-label">Phone Number</label>
+                    <input type="tel" id="phone_number_input" class="form-control <?php echo (!empty($phone_number_err)) ? 'is-invalid' : ''; ?>" placeholder="Enter your phone number" required />
+                    <input type="hidden" name="phone_number" id="full_phone_number" value="<?php echo htmlspecialchars($phone_number); ?>">
+                    <div class="invalid-feedback" id="phone-number-feedback"><?php echo $phone_number_err; ?></div>
+                </div>
+                
                 <div class="mb-3 position-relative">
                     <label for="password" class="form-label">Password</label>
                     <div class="input-group">
                         <span class="input-group-text"><i class="fas fa-lock"></i></span>
-                        <input type="password" id="password" name="password" class="form-control <?php echo (!empty($password_err)) ? 'is-invalid' : ''; ?>" placeholder="Enter your password" />
+                        <input type="password" id="password" name="password" class="form-control <?php echo (!empty($password_err)) ? 'is-invalid' : ''; ?>" placeholder="Enter your password" required />
+                        <span class="input-group-text password-toggle" onclick="togglePasswordVisibility('password')"><i class="fas fa-eye-slash" id="toggle-password"></i></span>
                         <div class="invalid-feedback"><?php echo $password_err; ?></div>
                     </div>
+                    <div class="password-meter-bar" id="password-strength-bar"></div>
+                    <small class="form-text text-muted">Min 8 chars, 1 uppercase, 1 lowercase, 1 number, 1 special char.</small>
                 </div>
+
+                <div class="mb-3 position-relative">
+                    <label for="confirm_password" class="form-label">Confirm Password</label>
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="fas fa-lock"></i></span>
+                        <input type="password" id="confirm_password" name="confirm_password" class="form-control <?php echo (!empty($confirm_password_err)) ? 'is-invalid' : ''; ?>" placeholder="Confirm your password" required />
+                        <span class="input-group-text password-toggle" onclick="togglePasswordVisibility('confirm_password')"><i class="fas fa-eye-slash" id="toggle-confirm_password"></i></span>
+                        <div class="invalid-feedback"><?php echo $confirm_password_err; ?></div>
+                    </div>
+                </div>
+                
                 <div class="mb-3 position-relative">
                     <label for="shop_name" class="form-label">Shop Name (optional)</label>
                     <div class="input-group">
@@ -170,6 +219,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                         <input type="text" id="shop_name" name="shop_name" class="form-control" value="<?php echo htmlspecialchars($shop_name); ?>" placeholder="Enter your shop name if any" />
                     </div>
                 </div>
+                
                 <div class="d-grid">
                     <button type="submit" class="btn btn-primary"><i class="fas fa-user-plus"></i> Register</button>
                 </div>
@@ -182,5 +232,87 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.13/js/intlTelInput-jquery.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.13/js/intlTelInput.min.js"></script>
+
+<script>
+    // --- Password Visibility Toggle Function ---
+    function togglePasswordVisibility(fieldId) {
+        const field = document.getElementById(fieldId);
+        const icon = document.getElementById('toggle-' + fieldId);
+        
+        if (field.type === 'password') {
+            field.type = 'text';
+            icon.classList.remove('fa-eye-slash');
+            icon.classList.add('fa-eye');
+        } else {
+            field.type = 'password';
+            icon.classList.remove('fa-eye');
+            icon.classList.add('fa-eye-slash');
+        }
+    }
+
+    // --- Password Strength Meter Function ---
+    function updatePasswordStrength() {
+        const password = document.getElementById('password').value;
+        const bar = document.getElementById('password-strength-bar');
+        let score = 0;
+        
+        // Criteria for scoring
+        if (password.length >= 8) score++; // Length
+        if (/[a-z]/.test(password)) score++; // Lowercase
+        if (/[A-Z]/.test(password)) score++; // Uppercase
+        if (/\d/.test(password)) score++; // Number
+        if (/[^A-Za-z0-9]/.test(password)) score++; // Special Character
+
+        bar.className = 'password-meter-bar';
+
+        if (password.length > 0) {
+            if (score < 3) {
+                bar.classList.add('weak');
+            } else if (score < 5) {
+                bar.classList.add('medium');
+            } else {
+                bar.classList.add('strong');
+            }
+        }
+    }
+    
+    document.getElementById('password').addEventListener('input', updatePasswordStrength);
+
+
+    // --- Phone Number Initialization ---
+    const phoneInputField = document.querySelector("#phone_number_input");
+    const fullPhoneNumberField = document.querySelector("#full_phone_number");
+    const phoneErrorFeedback = document.querySelector("#phone-number-feedback");
+
+    const phoneInput = window.intlTelInput(phoneInputField, {
+        preferredCountries: ["pk", "us", "gb", "ca", "au"],
+        utilsScript: "https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.13/js/utils.js",
+    });
+
+    // --- Form Submission Logic (to ensure phone number is correctly formatted) ---
+    function validateForm() {
+        // 1. Get the fully formatted phone number
+        const isValid = phoneInput.isValidNumber();
+        
+        if (isValid) {
+            // Set the hidden field value to the international format for submission
+            fullPhoneNumberField.value = phoneInput.getNumber(intlTelInputUtils.numberFormat.E164);
+            phoneInputField.classList.remove('is-invalid');
+            phoneErrorFeedback.textContent = '';
+            
+            // Allow form submission
+            return true;
+        } else {
+            // Phone number is not valid
+            phoneInputField.classList.add('is-invalid');
+            phoneErrorFeedback.textContent = 'Please enter a valid phone number for the selected country.';
+            
+            // Prevent form submission
+            return false;
+        }
+    }
+</script>
 </body>
 </html>

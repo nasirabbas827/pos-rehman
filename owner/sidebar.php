@@ -28,11 +28,15 @@
       color: white;
       padding: 1rem;
       z-index: 1000;
+      overflow-y: auto; /* Enable scrolling */
     }
 
     .nav-link {
       font-size: clamp(0.9rem, 2.5vw, 1rem);
       transition: background-color 0.3s;
+      color: white;
+      padding: 0.5rem 1rem;
+      border-radius: 0.25rem;
     }
 
     .nav-link:hover {
@@ -70,14 +74,21 @@
     /* Style offcanvas sidebar */
     .offcanvas {
       width: 280px;
+      background-color: #212529;
     }
 
     .offcanvas .nav-link {
       color: white;
+      padding: 0.5rem 1rem;
+      border-radius: 0.25rem;
     }
 
     .offcanvas .nav-link:hover {
       background-color: #007bff;
+    }
+
+    .offcanvas-body {
+      overflow-y: auto; /* Enable scrolling in offcanvas */
     }
 
     @media (max-width: 576px) {
@@ -120,12 +131,12 @@
     </li>
     <li class="nav-item">
       <a class="nav-link text-white" href="branches.php">
-        <i class="fas fa-store-alt me-2"></i> Branches
+        <i class="fas fa-store me-2"></i> Branches
       </a>
     </li>
     <li class="nav-item">
       <a class="nav-link text-white" href="categories.php">
-        <i class="fas fa-list-alt me-2"></i> Categories
+        <i class="fas fa-list me-2"></i> Categories
       </a>
     </li>
     <li class="nav-item">
@@ -135,16 +146,30 @@
     </li>
     <li class="nav-item">
       <a class="nav-link text-white" href="products.php">
-        <i class="fas fa-boxes me-2"></i> Products
+        <i class="fas fa-box me-2"></i> Products
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link text-white" href="salespersons.php">
+        <i class="fas fa-user-tag me-2"></i> Sales Person
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link text-white" href="customers.php">
+        <i class="fas fa-users me-2"></i> Customers
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link text-white" href="sales_history.php">
+        <i class="fas fa-chart-line me-2"></i> Sales History
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link text-white" href="logout.php">
+        <i class="fas fa-sign-out-alt me-2"></i> Logout
       </a>
     </li>
   </ul>
-  <hr>
-  <div>
-    <a class="nav-link text-white" href="logout.php">
-      <i class="fas fa-sign-out-alt me-2"></i> Logout
-    </a>
-  </div>
 </nav>
 
 <!-- 📱 Offcanvas Sidebar (mobile only) -->
@@ -169,12 +194,12 @@
       </li>
       <li class="nav-item">
         <a class="nav-link text-white" href="branches.php">
-          <i class="fas fa-store-alt me-2"></i> Branches
+          <i class="fas fa-store me-2"></i> Branches
         </a>
       </li>
       <li class="nav-item">
         <a class="nav-link text-white" href="categories.php">
-          <i class="fas fa-list-alt me-2"></i> Categories
+          <i class="fas fa-list me-2"></i> Categories
         </a>
       </li>
       <li class="nav-item">
@@ -184,7 +209,22 @@
       </li>
       <li class="nav-item">
         <a class="nav-link text-white" href="products.php">
-          <i class="fas fa-boxes me-2"></i> Products
+          <i class="fas fa-box me-2"></i> Products
+        </a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link text-white" href="salespersons.php">
+          <i class="fas fa-user-tag me-2"></i> Sales Person
+        </a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link text-white" href="customers.php">
+          <i class="fas fa-users me-2"></i> Customers
+        </a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link text-white" href="sales_history.php">
+          <i class="fas fa-chart-line me-2"></i> Sales History
         </a>
       </li>
       <li class="nav-item">

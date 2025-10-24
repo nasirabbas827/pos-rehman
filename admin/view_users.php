@@ -7,7 +7,8 @@ if (!isset($_SESSION["usertype"]) || $_SESSION["usertype"] !== "admin") {
     exit;
 }
 
-$result = mysqli_query($conn, "SELECT * FROM users ORDER BY id DESC");
+// Ensure you select all necessary columns, including 'phone_number' and 'created_at'
+$result = mysqli_query($conn, "SELECT id, name, email, phone_number, shop_name, created_at FROM users ORDER BY id DESC");
 ?>
 
 <!DOCTYPE html>
@@ -63,8 +64,6 @@ $result = mysqli_query($conn, "SELECT * FROM users ORDER BY id DESC");
             z-index: 1100;
         }
 
-        
-
         /* Responsive adjustments */
         @media (max-width: 992px) {
             body {
@@ -96,7 +95,6 @@ $result = mysqli_query($conn, "SELECT * FROM users ORDER BY id DESC");
     </style>
 </head>
 <body>
-    <!-- Hamburger button for mobile -->
     <button class="navbar-toggler" type="button" data-bs-toggle="offcanvas" data-bs-target="#sidebarOffcanvas" aria-controls="sidebarOffcanvas">
         <span class="navbar-toggler-icon"></span>
     </button>
@@ -112,6 +110,7 @@ $result = mysqli_query($conn, "SELECT * FROM users ORDER BY id DESC");
                         <th><i class="fas fa-id-badge me-1"></i>ID</th>
                         <th><i class="fas fa-user me-1"></i>Name</th>
                         <th><i class="fas fa-envelope me-1"></i>Email</th>
+                        <th><i class="fas fa-phone me-1"></i>Phone</th>
                         <th><i class="fas fa-store me-1"></i>Shop Name</th>
                         <th><i class="fas fa-calendar-alt me-1"></i>Registered At</th>
                     </tr>
@@ -123,19 +122,18 @@ $result = mysqli_query($conn, "SELECT * FROM users ORDER BY id DESC");
                                 <td><?= $row['id'] ?></td>
                                 <td><?= htmlspecialchars($row['name']) ?></td>
                                 <td><?= htmlspecialchars($row['email']) ?></td>
+                                <td><?= htmlspecialchars($row['phone_number'] ?: '-') ?></td>
                                 <td><?= htmlspecialchars($row['shop_name'] ?: '-') ?></td>
                                 <td><?= htmlspecialchars($row['created_at']) ?></td>
                             </tr>
                         <?php endwhile; ?>
                     <?php else: ?>
-                        <tr><td colspan="5" class="text-center">No users found.</td></tr>
+                        <tr><td colspan="6" class="text-center">No users found.</td></tr>
                     <?php endif; ?>
                 </tbody>
             </table>
         </div>
     </div>
-
-
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>

@@ -72,56 +72,66 @@ $conn->close();
 
     <div id="alertPlaceholder"></div>
 
-    <table class="table table-bordered table-hover align-middle">
-        <thead class="table-dark">
-            <tr>
-                <th>Image</th>
-                <th>Barcode</th>
-                <th>Name</th>
-                <th>Description</th>
-                <th>Price</th>
-                <th>Qty</th>
-                <th>Unit</th>
-                <th>Category</th>
-                <th>Branch</th>
-                <th>Created At</th>
-                <th style="width: 120px;">Actions</th>
-            </tr>
-        </thead>
-        <tbody id="productsTableBody">
-            <?php if (count($products) === 0): ?>
-                <tr><td colspan="11" class="text-center">No products found.</td></tr>
-            <?php else: ?>
-                <?php foreach ($products as $p): ?>
-                    <tr data-id="<?= $p['id'] ?>">
-                        <td><img src="images/<?= htmlspecialchars($p['image']) ?>" alt="Product Image" class="product-image-thumb"></td>
-                        <td><?= htmlspecialchars($p['barcode_id']) ?></td>
-                        <td><?= htmlspecialchars($p['name']) ?></td>
-                        <td><?= htmlspecialchars(strlen($p['description']) > 40 ? substr($p['description'], 0, 40).'...' : $p['description']) ?></td>
-                        <td><?= number_format($p['price'], 2) ?></td>
-                        <td><?= (int)$p['quantity'] ?></td>
-                        <td><?= htmlspecialchars($p['unit']) ?></td>
-                        <td><?= htmlspecialchars($p['category_name']) ?></td>
-                        <td><?= htmlspecialchars($p['branch_name']) ?></td>
-                        <td><?= htmlspecialchars($p['created_at']) ?></td>
-                        <td>
-                            <button class="btn btn-sm btn-info btn-edit" data-id="<?= $p['id'] ?>" title="Edit"><i class="fas fa-edit"></i></button>
-                            <button class="btn btn-sm btn-danger btn-delete" data-id="<?= $p['id'] ?>" title="Delete"><i class="fas fa-trash"></i></button>
-                        </td>
-                    </tr>
-                <?php endforeach; ?>
-            <?php endif; ?>
-        </tbody>
-    </table>
+    <div class="row mb-3">
+        <div class="col-md-6 col-lg-4">
+            <div class="input-group">
+                <span class="input-group-text"><i class="fas fa-search"></i></span>
+                <input type="text" id="productSearch" class="form-control" placeholder="Filter by Name or Barcode ID..." onkeyup="filterTable()">
+            </div>
+        </div>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-bordered table-hover align-middle">
+            <thead class="table-dark">
+                <tr>
+                    <th>Image</th>
+                    <th>Barcode</th>
+                    <th>Name</th>
+                    <th>Description</th>
+                    <th>Price</th>
+                    <th>Qty</th>
+                    <th>Unit</th>
+                    <th>Category</th>
+                    <th>Branch</th>
+                    <th>Created At</th>
+                    <th style="width: 120px;">Actions</th>
+                </tr>
+            </thead>
+            <tbody id="productsTableBody">
+                <?php if (count($products) === 0): ?>
+                    <tr><td colspan="11" class="text-center" id="noProductsRow">No products found.</td></tr>
+                <?php else: ?>
+                    <?php foreach ($products as $p): ?>
+                        <tr data-id="<?= $p['id'] ?>">
+                            <td><img src="images/<?= htmlspecialchars($p['image']) ?>" alt="Product Image" class="product-image-thumb"></td>
+                            <td class="search-col-barcode"><?= htmlspecialchars($p['barcode_id']) ?></td>
+                            <td class="search-col-name"><?= htmlspecialchars($p['name']) ?></td>
+                            <td><?= htmlspecialchars(strlen($p['description']) > 40 ? substr($p['description'], 0, 40).'...' : $p['description']) ?></td>
+                            <td><?= number_format($p['price'], 2) ?></td>
+                            <td><?= (int)$p['quantity'] ?></td>
+                            <td><?= htmlspecialchars($p['unit']) ?></td>
+                            <td><?= htmlspecialchars($p['category_name']) ?></td>
+                            <td><?= htmlspecialchars($p['branch_name']) ?></td>
+                            <td><?= htmlspecialchars($p['created_at']) ?></td>
+                            <td>
+                                <button class="btn btn-sm btn-info btn-edit" data-id="<?= $p['id'] ?>" title="Edit"><i class="fas fa-edit"></i></button>
+                                <button class="btn btn-sm btn-danger btn-delete" data-id="<?= $p['id'] ?>" title="Delete"><i class="fas fa-trash"></i></button>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                <?php endif; ?>
+            </tbody>
+        </table>
+    </div>
 </div>
 
-<!-- Modal placeholder -->
 <div id="productModalPlaceholder"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
 const alertPlaceholder = document.getElementById('alertPlaceholder');
 const modalPlaceholder = document.getElementById('productModalPlaceholder');
+const productsTableBody = document.getElementById('productsTableBody');
 
 function showAlert(message, type = 'success') {
     alertPlaceholder.innerHTML = `<div class="alert alert-${type} alert-dismissible fade show" role="alert">
@@ -201,9 +211,15 @@ document.querySelectorAll('.btn-delete').forEach(btn => {
                 showAlert(data.message);
                 const row = document.querySelector(`tr[data-id="${id}"]`);
                 if (row) row.remove();
-                if (document.querySelectorAll('#productsTableBody tr').length === 0) {
-                    document.getElementById('productsTableBody').innerHTML = '<tr><td colspan="11" class="text-center">No products found.</td></tr>';
+                
+                // Re-check for products after deletion
+                if (productsTableBody.querySelectorAll('tr[data-id]').length === 0) {
+                     productsTableBody.innerHTML = '<tr><td colspan="11" class="text-center" id="noProductsRow">No products found.</td></tr>';
                 }
+                
+                // Re-apply filter in case it was active
+                filterTable(); 
+
             } else {
                 showAlert(data.message, 'danger');
             }
@@ -211,6 +227,54 @@ document.querySelectorAll('.btn-delete').forEach(btn => {
         .catch(() => showAlert('Error processing request', 'danger'));
     });
 });
+
+
+// --- Filtering Functionality ---
+/**
+ * Filters the product table rows based on the input in the search field.
+ * It checks the Product Name (search-col-name) and Barcode ID (search-col-barcode).
+ */
+function filterTable() {
+    const input = document.getElementById('productSearch');
+    const filter = input.value.toUpperCase();
+    const rows = productsTableBody.querySelectorAll('tr[data-id]');
+    let visibleRowCount = 0;
+    const noProductsRow = document.getElementById('noProductsRow');
+    
+    rows.forEach(row => {
+        // Get the Name and Barcode cells for comparison
+        const nameCell = row.querySelector('.search-col-name');
+        const barcodeCell = row.querySelector('.search-col-barcode');
+
+        // Extract text and convert to uppercase for case-insensitive search
+        const nameText = nameCell ? nameCell.textContent.toUpperCase() : '';
+        const barcodeText = barcodeCell ? barcodeCell.textContent.toUpperCase() : '';
+
+        // Check if the filter matches either the Name or the Barcode
+        if (nameText.includes(filter) || barcodeText.includes(filter)) {
+            row.style.display = ""; // Show the row
+            visibleRowCount++;
+        } else {
+            row.style.display = "none"; // Hide the row
+        }
+    });
+
+    // Handle "No products found" row visibility
+    if (noProductsRow) {
+        // Hide the pre-existing "No products found" row if any products are visible
+        noProductsRow.style.display = (visibleRowCount > 0) ? 'none' : 'table-row';
+    } else if (visibleRowCount === 0) {
+        // If there's no pre-existing message, but no rows are visible, add one for filtering
+        if (!document.getElementById('tempNoResults')) {
+             productsTableBody.insertAdjacentHTML('beforeend', '<tr id="tempNoResults"><td colspan="11" class="text-center">No results found for this filter.</td></tr>');
+        } else {
+             document.getElementById('tempNoResults').style.display = 'table-row';
+        }
+    } else if (visibleRowCount > 0 && document.getElementById('tempNoResults')) {
+        // If results are found, remove any temporary message
+        document.getElementById('tempNoResults').remove();
+    }
+}
 </script>
 </body>
 </html>
