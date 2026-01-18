@@ -114,8 +114,10 @@ $result = mysqli_stmt_get_result($stmt);
             <i class="fas fa-user-plus"></i> Add Salesperson
         </button>
 
-        <table class="table table-bordered table-hover align-middle">
-            <thead class="table-light">
+    <div class="table-container">
+        <div class="table-responsive">
+<table class="table table-bordered table-hover align-middle">
+            <thead class="table-dark">
                 <tr>
                     <th>ID</th>
                     <th>Name</th>

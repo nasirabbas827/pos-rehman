@@ -1,0 +1,234 @@
+2025-12-15 07:50:10 | ----- SCRIPT START -----
+2025-12-15 07:50:10 | Session OK. Salesperson ID: 1
+2025-12-15 07:50:10 | Database connected
+2025-12-15 07:50:10 | Fetched branch_id: 1
+2025-12-15 07:50:10 | Barcode received: [60624949] Length: 8
+2025-12-15 07:50:10 | Executing product query
+2025-12-15 07:50:10 | Rows found: 0
+2025-12-15 07:50:10 | Product NOT FOUND for barcode: 60624949
+2025-12-15 07:50:10 | ----- SCRIPT END -----
+2025-12-15 07:50:17 | ----- SCRIPT START -----
+2025-12-15 07:50:17 | Session OK. Salesperson ID: 1
+2025-12-15 07:50:17 | Database connected
+2025-12-15 07:50:17 | Fetched branch_id: 1
+2025-12-15 07:50:17 | Barcode received: [2201112172670] Length: 13
+2025-12-15 07:50:17 | Executing product query
+2025-12-15 07:50:17 | Rows found: 0
+2025-12-15 07:50:17 | Product NOT FOUND for barcode: 2201112172670
+2025-12-15 07:50:17 | ----- SCRIPT END -----
+2025-12-15 07:50:37 | ----- SCRIPT START -----
+2025-12-15 07:50:37 | Session OK. Salesperson ID: 1
+2025-12-15 07:50:37 | Database connected
+2025-12-15 07:50:37 | Fetched branch_id: 1
+2025-12-15 07:50:37 | Barcode received: [0640947281089] Length: 13
+2025-12-15 07:50:37 | Executing product query
+2025-12-15 07:50:37 | Rows found: 1
+2025-12-15 07:50:37 | Product FOUND: ID 33
+2025-12-15 07:50:37 | ----- SCRIPT END -----
+2025-12-15 07:54:14 | ----- SCRIPT START -----
+2025-12-15 07:54:14 | Session OK. Salesperson ID: 1
+2025-12-15 07:54:14 | Database connected
+2025-12-15 07:54:14 | Fetched branch_id: 1
+2025-12-15 07:54:14 | Barcode received: [0640947281089] Length: 13
+2025-12-15 07:54:14 | Executing product query
+2025-12-15 07:54:14 | Rows found: 1
+2025-12-15 07:54:14 | Product FOUND: ID 33
+2025-12-15 07:54:14 | ----- SCRIPT END -----
+2025-12-15 07:56:06 | ----- SCRIPT START -----
+2025-12-15 07:56:06 | Session OK. Salesperson ID: 1
+2025-12-15 07:56:06 | Database connected
+2025-12-15 07:56:06 | Fetched branch_id: 1
+2025-12-15 07:56:06 | Barcode received: [3200181118670] Length: 13
+2025-12-15 07:56:06 | Executing product query
+2025-12-15 07:56:06 | Rows found: 0
+2025-12-15 07:56:06 | Product NOT FOUND for barcode: 3200181118670
+2025-12-15 07:56:06 | ----- SCRIPT END -----
+2025-12-15 07:56:19 | ----- SCRIPT START -----
+2025-12-15 07:56:19 | Session OK. Salesperson ID: 1
+2025-12-15 07:56:19 | Database connected
+2025-12-15 07:56:19 | Fetched branch_id: 1
+2025-12-15 07:56:19 | Barcode received: [0840941281089] Length: 13
+2025-12-15 07:56:19 | Executing product query
+2025-12-15 07:56:19 | Rows found: 0
+2025-12-15 07:56:19 | Product NOT FOUND for barcode: 0840941281089
+2025-12-15 07:56:19 | ----- SCRIPT END -----
+2025-12-15 07:56:32 | ----- SCRIPT START -----
+2025-12-15 07:56:32 | Session OK. Salesperson ID: 1
+2025-12-15 07:56:32 | Database connected
+2025-12-15 07:56:32 | Fetched branch_id: 1
+2025-12-15 07:56:32 | Barcode received: [0640947281089] Length: 13
+2025-12-15 07:56:32 | Executing product query
+2025-12-15 07:56:32 | Rows found: 1
+2025-12-15 07:56:32 | Product FOUND: ID 33
+2025-12-15 07:56:32 | ----- SCRIPT END -----
+2025-12-15 07:57:25 | ----- SCRIPT START -----
+2025-12-15 07:57:25 | Session OK. Salesperson ID: 1
+2025-12-15 07:57:25 | Database connected
+2025-12-15 07:57:25 | Fetched branch_id: 1
+2025-12-15 07:57:25 | Barcode received: [0640947281089] Length: 13
+2025-12-15 07:57:25 | Executing product query
+2025-12-15 07:57:25 | Rows found: 1
+2025-12-15 07:57:25 | Product FOUND: ID 33
+2025-12-15 07:57:25 | ----- SCRIPT END -----
+2025-12-15 07:57:42 | ----- SCRIPT START -----
+2025-12-15 07:57:42 | Session OK. Salesperson ID: 1
+2025-12-15 07:57:42 | Database connected
+2025-12-15 07:57:42 | Fetched branch_id: 1
+2025-12-15 07:57:42 | Barcode received: [3200181108800] Length: 13
+2025-12-15 07:57:42 | Executing product query
+2025-12-15 07:57:42 | Rows found: 0
+2025-12-15 07:57:42 | Product NOT FOUND for barcode: 3200181108800
+2025-12-15 07:57:42 | ----- SCRIPT END -----
+2025-12-15 07:57:42 | ----- SCRIPT START -----
+2025-12-15 07:57:42 | Session OK. Salesperson ID: 1
+2025-12-15 07:57:42 | Database connected
+2025-12-15 07:57:42 | Fetched branch_id: 1
+2025-12-15 07:57:42 | Barcode received: [3200181108800] Length: 13
+2025-12-15 07:57:42 | Executing product query
+2025-12-15 07:57:42 | Rows found: 0
+2025-12-15 07:57:42 | Product NOT FOUND for barcode: 3200181108800
+2025-12-15 07:57:42 | ----- SCRIPT END -----
+2025-12-15 07:57:47 | ----- SCRIPT START -----
+2025-12-15 07:57:47 | Session OK. Salesperson ID: 1
+2025-12-15 07:57:47 | Database connected
+2025-12-15 07:57:47 | Fetched branch_id: 1
+2025-12-15 07:57:47 | Barcode received: [0640947281089] Length: 13
+2025-12-15 07:57:47 | Executing product query
+2025-12-15 07:57:47 | Rows found: 1
+2025-12-15 07:57:47 | Product FOUND: ID 33
+2025-12-15 07:57:47 | ----- SCRIPT END -----
+2025-12-15 07:57:47 | ----- SCRIPT START -----
+2025-12-15 07:57:47 | Session OK. Salesperson ID: 1
+2025-12-15 07:57:47 | Database connected
+2025-12-15 07:57:47 | Fetched branch_id: 1
+2025-12-15 07:57:47 | Barcode received: [0640947281089] Length: 13
+2025-12-15 07:57:47 | Executing product query
+2025-12-15 07:57:47 | Rows found: 1
+2025-12-15 07:57:47 | Product FOUND: ID 33
+2025-12-15 07:57:47 | ----- SCRIPT END -----
+2025-12-15 07:57:47 | ----- SCRIPT START -----
+2025-12-15 07:57:47 | Session OK. Salesperson ID: 1
+2025-12-15 07:57:47 | Database connected
+2025-12-15 07:57:47 | Fetched branch_id: 1
+2025-12-15 07:57:47 | Barcode received: [0640947281089] Length: 13
+2025-12-15 07:57:47 | Executing product query
+2025-12-15 07:57:47 | Rows found: 1
+2025-12-15 07:57:47 | Product FOUND: ID 33
+2025-12-15 07:57:47 | ----- SCRIPT END -----
+2025-12-15 08:04:48 | ----- SCRIPT START -----
+2025-12-15 08:04:48 | Session OK. Salesperson ID: 1
+2025-12-15 08:04:48 | Database connected
+2025-12-15 08:04:48 | Fetched branch_id: 1
+2025-12-15 08:04:48 | Barcode received: [0640947281089] Length: 13
+2025-12-15 08:04:48 | Executing product query
+2025-12-15 08:04:48 | Rows found: 1
+2025-12-15 08:04:48 | Product FOUND: ID 33
+2025-12-15 08:04:48 | ----- SCRIPT END -----
+2025-12-15 08:09:13 | ----- SCRIPT START -----
+2025-12-15 08:09:13 | Session OK. Salesperson ID: 1
+2025-12-15 08:09:13 | Database connected
+2025-12-15 08:09:13 | Fetched branch_id: 1
+2025-12-15 08:09:13 | Barcode received: [47121089] Length: 8
+2025-12-15 08:09:13 | Executing product query
+2025-12-15 08:09:13 | Rows found: 0
+2025-12-15 08:09:13 | Product NOT FOUND for barcode: 47121089
+2025-12-15 08:09:13 | ----- SCRIPT END -----
+2025-12-15 08:09:29 | ----- SCRIPT START -----
+2025-12-15 08:09:29 | Session OK. Salesperson ID: 1
+2025-12-15 08:09:29 | Database connected
+2025-12-15 08:09:29 | Fetched branch_id: 1
+2025-12-15 08:09:29 | Barcode received: [91117137] Length: 8
+2025-12-15 08:09:29 | Executing product query
+2025-12-15 08:09:29 | Rows found: 0
+2025-12-15 08:09:29 | Product NOT FOUND for barcode: 91117137
+2025-12-15 08:09:29 | ----- SCRIPT END -----
+2025-12-15 08:10:31 | ----- SCRIPT START -----
+2025-12-15 08:10:31 | Session OK. Salesperson ID: 1
+2025-12-15 08:10:31 | Database connected
+2025-12-15 08:10:31 | Fetched branch_id: 1
+2025-12-15 08:10:31 | Barcode received: [0640947281089] Length: 13
+2025-12-15 08:10:31 | Executing product query
+2025-12-15 08:10:31 | Rows found: 1
+2025-12-15 08:10:31 | Product FOUND: ID 33
+2025-12-15 08:10:31 | ----- SCRIPT END -----
+2025-12-15 08:12:15 | ----- SCRIPT START -----
+2025-12-15 08:12:15 | Session OK. Salesperson ID: 1
+2025-12-15 08:12:15 | Database connected
+2025-12-15 08:12:15 | Fetched branch_id: 1
+2025-12-15 08:12:15 | Barcode received: [0640947281089] Length: 13
+2025-12-15 08:12:15 | Executing product query
+2025-12-15 08:12:15 | Rows found: 1
+2025-12-15 08:12:15 | Product FOUND: ID 33
+2025-12-15 08:12:15 | ----- SCRIPT END -----
+2025-12-15 08:12:55 | ----- SCRIPT START -----
+2025-12-15 08:12:55 | Session OK. Salesperson ID: 1
+2025-12-15 08:12:55 | Database connected
+2025-12-15 08:12:55 | Fetched branch_id: 1
+2025-12-15 08:12:55 | Barcode received: [0640947281089] Length: 13
+2025-12-15 08:12:55 | Executing product query
+2025-12-15 08:12:55 | Rows found: 1
+2025-12-15 08:12:55 | Product FOUND: ID 33
+2025-12-15 08:12:55 | ----- SCRIPT END -----
+2025-12-15 08:15:09 | ----- SCRIPT START -----
+2025-12-15 08:15:09 | Session OK. Salesperson ID: 1
+2025-12-15 08:15:09 | Database connected
+2025-12-15 08:15:09 | Fetched branch_id: 1
+2025-12-15 08:15:09 | Barcode received: [20115876] Length: 8
+2025-12-15 08:15:09 | Executing product query
+2025-12-15 08:15:09 | Rows found: 0
+2025-12-15 08:15:09 | Product NOT FOUND for barcode: 20115876
+2025-12-15 08:15:09 | ----- SCRIPT END -----
+2025-12-15 08:15:14 | ----- SCRIPT START -----
+2025-12-15 08:15:14 | Session OK. Salesperson ID: 1
+2025-12-15 08:15:14 | Database connected
+2025-12-15 08:15:14 | Fetched branch_id: 1
+2025-12-15 08:15:14 | Barcode received: [0640947281089] Length: 13
+2025-12-15 08:15:14 | Executing product query
+2025-12-15 08:15:14 | Rows found: 1
+2025-12-15 08:15:14 | Product FOUND: ID 33
+2025-12-15 08:15:14 | ----- SCRIPT END -----
+2025-12-15 08:18:27 | ----- SCRIPT START -----
+2025-12-15 08:18:27 | Session OK. Salesperson ID: 1
+2025-12-15 08:18:27 | Database connected
+2025-12-15 08:18:27 | Fetched branch_id: 1
+2025-12-15 08:18:27 | Barcode received: [20451257] Length: 8
+2025-12-15 08:18:27 | Executing product query
+2025-12-15 08:18:27 | Rows found: 0
+2025-12-15 08:18:27 | Product NOT FOUND for barcode: 20451257
+2025-12-15 08:18:27 | ----- SCRIPT END -----
+2025-12-15 08:18:38 | ----- SCRIPT START -----
+2025-12-15 08:18:38 | Session OK. Salesperson ID: 1
+2025-12-15 08:18:38 | Database connected
+2025-12-15 08:18:38 | Fetched branch_id: 1
+2025-12-15 08:18:38 | Barcode received: [20417857] Length: 8
+2025-12-15 08:18:38 | Executing product query
+2025-12-15 08:18:38 | Rows found: 0
+2025-12-15 08:18:38 | Product NOT FOUND for barcode: 20417857
+2025-12-15 08:18:38 | ----- SCRIPT END -----
+2025-12-15 08:18:45 | ----- SCRIPT START -----
+2025-12-15 08:18:45 | Session OK. Salesperson ID: 1
+2025-12-15 08:18:45 | Database connected
+2025-12-15 08:18:45 | Fetched branch_id: 1
+2025-12-15 08:18:45 | Barcode received: [0640947281089] Length: 13
+2025-12-15 08:18:45 | Executing product query
+2025-12-15 08:18:45 | Rows found: 1
+2025-12-15 08:18:45 | Product FOUND: ID 33
+2025-12-15 08:18:45 | ----- SCRIPT END -----
+2025-12-15 08:19:32 | ----- SCRIPT START -----
+2025-12-15 08:19:32 | Session OK. Salesperson ID: 1
+2025-12-15 08:19:32 | Database connected
+2025-12-15 08:19:32 | Fetched branch_id: 1
+2025-12-15 08:19:32 | Barcode received: [0840941281089] Length: 13
+2025-12-15 08:19:32 | Executing product query
+2025-12-15 08:19:32 | Rows found: 0
+2025-12-15 08:19:32 | Product NOT FOUND for barcode: 0840941281089
+2025-12-15 08:19:32 | ----- SCRIPT END -----
+2025-12-15 08:19:40 | ----- SCRIPT START -----
+2025-12-15 08:19:40 | Session OK. Salesperson ID: 1
+2025-12-15 08:19:40 | Database connected
+2025-12-15 08:19:40 | Fetched branch_id: 1
+2025-12-15 08:19:40 | Barcode received: [0640947281089] Length: 13
+2025-12-15 08:19:40 | Executing product query
+2025-12-15 08:19:40 | Rows found: 1
+2025-12-15 08:19:40 | Product FOUND: ID 33
+2025-12-15 08:19:40 | ----- SCRIPT END -----

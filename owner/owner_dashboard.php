@@ -1,420 +1,330 @@
 <?php
 session_start();
-if (!isset($_SESSION["id"])) {
+if (!isset($_SESSION["id"]) || $_SESSION["role"] !== "owner") {
     header("Location: ../login.php");
     exit();
 }
 
 include('../config.php');
-$user_id = $_SESSION["id"];
+$owner_id = $_SESSION["id"];
 
-// Fetch user info
-$sql = "SELECT name, email, shop_name, created_at FROM users WHERE id = ?";
-$stmt = mysqli_prepare($conn, $sql);
-mysqli_stmt_bind_param($stmt, "i", $user_id);
-mysqli_stmt_execute($stmt);
-mysqli_stmt_bind_result($stmt, $name, $email, $shop_name, $created_at);
-mysqli_stmt_fetch($stmt);
-mysqli_stmt_close($stmt);
-
-// Fetch branches
-$sqlBranches = "SELECT id, name FROM branches WHERE owner_id = ? ORDER BY name";
-$stmt = $conn->prepare($sqlBranches);
-$stmt->bind_param("i", $user_id);
+// ────────────────────────────────────────────────
+// 1. Fetch Owner Profile
+// ────────────────────────────────────────────────
+$stmt = $conn->prepare("SELECT name, shop_name FROM users WHERE id = ?");
+$stmt->bind_param("i", $owner_id);
 $stmt->execute();
-$resultBranches = $stmt->get_result();
-$branches = $resultBranches->fetch_all(MYSQLI_ASSOC);
-$stmt->close();
-
-// Recent Managers
-$sqlManagers = "SELECT m.id, m.full_name, m.email, b.name AS branch_name
-                FROM managers m
-                JOIN branches b ON m.branch_id = b.id
-                WHERE b.owner_id = ?
-                ORDER BY m.assigned_at DESC LIMIT 5";
-$stmt = $conn->prepare($sqlManagers);
-$stmt->bind_param("i", $user_id);
-$stmt->execute();
-$resultManagers = $stmt->get_result();
-$managers = $resultManagers->fetch_all(MYSQLI_ASSOC);
-$stmt->close();
-
-// Recent Products
-$sqlProducts = "SELECT p.id, p.name, p.price, p.quantity, p.image, b.name AS branch_name
-                FROM products p
-                JOIN branches b ON p.branch_id = b.id
-                WHERE b.owner_id = ?
-                ORDER BY p.created_at DESC LIMIT 5";
-$stmt = $conn->prepare($sqlProducts);
-$stmt->bind_param("i", $user_id);
-$stmt->execute();
-$resultProducts = $stmt->get_result();
-$products = $resultProducts->fetch_all(MYSQLI_ASSOC);
-$stmt->close();
-
-// Counts
-$totalBranches = count($branches);
-
-$sqlCountManagers = "SELECT COUNT(*) FROM managers m JOIN branches b ON m.branch_id = b.id WHERE b.owner_id = ?";
-$stmt = $conn->prepare($sqlCountManagers);
-$stmt->bind_param("i", $user_id);
-$stmt->execute();
-$stmt->bind_result($countManagers);
+$stmt->bind_result($owner_name, $shop_name);
 $stmt->fetch();
 $stmt->close();
 
-$sqlCountProducts = "SELECT COUNT(*) FROM products p JOIN branches b ON p.branch_id = b.id WHERE b.owner_id = ?";
-$stmt = $conn->prepare($sqlCountProducts);
-$stmt->bind_param("i", $user_id);
+// ────────────────────────────────────────────────
+// 2. KPI / Summary Data
+// ────────────────────────────────────────────────
+$today = date('Y-m-d');
+$this_month_start = date('Y-m-01');
+
+$stmt = $conn->prepare("
+    SELECT 
+        COALESCE(SUM(CASE WHEN DATE(sale_date) = ? THEN total_amount END), 0) AS today_sales,
+        COALESCE(SUM(CASE WHEN sale_date >= ? THEN total_amount END), 0) AS month_sales,
+        COALESCE(SUM(CASE WHEN sale_date >= ? THEN cash_received END), 0) AS month_cash
+    FROM sales s
+    JOIN branches b ON s.branch_id = b.id
+    WHERE b.owner_id = ?
+");
+$stmt->bind_param("sssi", $today, $this_month_start, $this_month_start, $owner_id);
 $stmt->execute();
-$stmt->bind_result($countProducts);
+$sales_row = $stmt->get_result()->fetch_assoc();
+$stmt->close();
+
+// Map array values to variables to avoid Undefined Variable errors
+$today_sales = $sales_row['today_sales'] ?? 0;
+$month_sales = $sales_row['month_sales'] ?? 0;
+$month_cash  = $sales_row['month_cash'] ?? 0;
+
+// Total Outstanding Credit
+$stmt = $conn->prepare("
+    SELECT COALESCE(SUM(k.amount - k.cash_received), 0) AS total_credit
+    FROM khata k
+    JOIN customers c ON k.customer_id = c.id
+    JOIN branches b ON c.branch_id = b.id
+    WHERE b.owner_id = ? AND k.type = 'CREDIT'
+");
+$stmt->bind_param("i", $owner_id);
+$stmt->execute();
+$stmt->bind_result($total_credit);
 $stmt->fetch();
 $stmt->close();
 
-// LOW STOCK ALERTS (quantity <= 5)
-$lowStockThreshold = 5;
-$sqlLowStock = "SELECT p.name, p.quantity, b.name AS branch_name 
-                FROM products p 
-                JOIN branches b ON p.branch_id = b.id 
-                WHERE b.owner_id = ? AND p.quantity <= ? 
-                ORDER BY p.quantity ASC LIMIT 10";
-$stmt = $conn->prepare($sqlLowStock);
-$stmt->bind_param("ii", $user_id, $lowStockThreshold);
+// Products & Low Stock
+$stmt = $conn->prepare("
+    SELECT 
+        COUNT(*) AS total_products,
+        SUM(CASE WHEN quantity <= low_stock_threshold AND quantity > 0 THEN 1 ELSE 0 END) AS low_stock
+    FROM products p
+    JOIN branches b ON p.branch_id = b.id
+    WHERE b.owner_id = ?
+");
+$stmt->bind_param("i", $owner_id);
 $stmt->execute();
-$resultLowStock = $stmt->get_result();
-$lowStockItems = $resultLowStock->fetch_all(MYSQLI_ASSOC);
+$product_stats = $stmt->get_result()->fetch_assoc();
 $stmt->close();
 
-// RECENT SALES (Last 5 sales)
-$sqlRecentSales = "SELECT s.id, s.sale_date, s.total_amount, s.payment_method, b.name AS branch_name
-                   FROM sales s
-                   JOIN branches b ON s.branch_id = b.id
-                   WHERE b.owner_id = ?
-                   ORDER BY s.sale_date DESC LIMIT 5";
-$stmt = $conn->prepare($sqlRecentSales);
-$stmt->bind_param("i", $user_id);
-$stmt->execute();
-$resultRecentSales = $stmt->get_result();
-$recentSales = $resultRecentSales->fetch_all(MYSQLI_ASSOC);
-$stmt->close();
-
-// CHART DATA: Sales per day (last 7 days)
-$salesChartLabels = [];
-$salesChartData = [];
-for ($i = 6; $i >= 0; $i--) {
+// ────────────────────────────────────────────────
+// 3. Chart Data
+// ────────────────────────────────────────────────
+$sales_trend_labels = []; $sales_trend_data = [];
+for ($i = 29; $i >= 0; $i--) {
     $date = date('Y-m-d', strtotime("-$i days"));
-    $salesChartLabels[] = date('M j', strtotime($date));
-    $sql = "SELECT COALESCE(SUM(s.total_amount), 0) 
-            FROM sales s 
-            JOIN branches b ON s.branch_id = b.id 
-            WHERE b.owner_id = ? AND DATE(s.sale_date) = ?";
-    $stmt = $conn->prepare($sql);
-    $stmt->bind_param("is", $user_id, $date);
-    $stmt->execute();
-    $stmt->bind_result($dailyTotal);
-    $stmt->fetch();
-    $salesChartData[] = $dailyTotal;
-    $stmt->close();
+    $sales_trend_labels[] = date('M j', strtotime($date));
+    $stmt = $conn->prepare("SELECT COALESCE(SUM(s.total_amount), 0) FROM sales s JOIN branches b ON s.branch_id = b.id WHERE b.owner_id = ? AND DATE(s.sale_date) = ?");
+    $stmt->bind_param("is", $owner_id, $date); $stmt->execute(); $stmt->bind_result($daily); $stmt->fetch();
+    $sales_trend_data[] = $daily; $stmt->close();
 }
 
-// CHART DATA: Products per branch
-$branchProductCounts = [];
-foreach ($branches as $branch) {
-    $sql = "SELECT COUNT(*) FROM products WHERE branch_id = ?";
-    $stmt = $conn->prepare($sql);
-    $stmt->bind_param("i", $branch['id']);
-    $stmt->execute();
-    $stmt->bind_result($count);
-    $stmt->fetch();
-    $branchProductCounts[] = $count;
-    $stmt->close();
-}
+$stmt = $conn->prepare("SELECT payment_method, COALESCE(SUM(total_amount), 0) AS total FROM sales s JOIN branches b ON s.branch_id = b.id WHERE b.owner_id = ? GROUP BY payment_method");
+$stmt->bind_param("i", $owner_id); $stmt->execute(); $payment_result = $stmt->get_result();
+$payment_labels = ['Cash' => 0, 'Credit' => 0];
+while ($row = $payment_result->fetch_assoc()) { $payment_labels[$row['payment_method']] = $row['total']; }
+$stmt->close();
 
-// CHART DATA: Low Stock Summary
-$lowStockCount = count($lowStockItems);
-$inStockCount = $countProducts - $lowStockCount;
+// ────────────────────────────────────────────────
+// 4. Tables Data
+// ────────────────────────────────────────────────
+$stmt = $conn->prepare("SELECT s.id, s.total_amount, s.payment_method, s.sale_date, b.name AS branch FROM sales s JOIN branches b ON s.branch_id = b.id WHERE b.owner_id = ? ORDER BY s.sale_date DESC LIMIT 6");
+$stmt->bind_param("i", $owner_id); $stmt->execute(); $recent_sales = $stmt->get_result()->fetch_all(MYSQLI_ASSOC); $stmt->close();
 
+$stmt = $conn->prepare("SELECT b.name, COALESCE(SUM(s.total_amount), 0) AS total_sales, (SELECT COUNT(*) FROM products p WHERE p.branch_id = b.id AND p.quantity <= p.low_stock_threshold AND p.quantity > 0) AS low_stock_count FROM branches b LEFT JOIN sales s ON s.branch_id = b.id WHERE b.owner_id = ? GROUP BY b.id, b.name ORDER BY total_sales DESC");
+$stmt->bind_param("i", $owner_id); $stmt->execute(); $branch_health = $stmt->get_result()->fetch_all(MYSQLI_ASSOC); $stmt->close();
 ?>
 
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8" />
-    <title>Owner Dashboard</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css" rel="stylesheet" />
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Owner Dashboard | <?= htmlspecialchars($shop_name) ?></title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
     <style>
-        body {
-            background-color: #e6effc;
-            font-family: Arial, sans-serif;
-            margin-left: 280px;
+        :root {
+            --sidebar-width: 280px;
+            --primary-color: #4f46e5;
+            --success-color: #10b981;
+            --danger-color: #ef4444;
+            --warning-color: #f59e0b;
         }
-        .container { padding: 2rem 1rem; }
-        h2, h4 { color: #333; margin-bottom: 1.5rem; }
-        h2 { font-size: clamp(1.4rem, 4vw, 1.8rem); }
-        h4 { font-size: clamp(1.2rem, 3vw, 1.5rem); }
-        .table { background-color: #fff; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-        .table th { background-color: #f8f9fa; }
-        .card { border-radius: 8px; transition: transform 0.3s; }
-        .card:hover { transform: translateY(-5px); }
-        .card-title { font-size: clamp(1rem, 2.5vw, 1.2rem); }
-        .card-text { font-size: clamp(0.85rem, 2.5vw, 0.95rem); }
-        .card-img-top { object-fit: cover; max-height: 180px; }
-        .display-6 { font-size: clamp(1.5rem, 4vw, 2rem); }
-        .no-image { background-color: #6c757d; color: #fff; text-align: center; padding: 3rem 0; }
-        .alert-dismissible .btn-close { padding: 0.75rem; }
-        .chart-container { position: relative; height: 300px; margin-bottom: 2rem; }
-        footer { background: #f8f9fa; padding: 2rem 1rem; text-align: center; margin-top: 3rem; }
-        .social-icons a { color: #333; margin: 0 0.5rem; font-size: 1.2rem; transition: color 0.3s; }
-        .social-icons a:hover { color: #007bff; }
-
-        @media (max-width: 992px) {
-            body { margin-left: 0; }
-            .container { padding: 1.5rem 1rem; }
-        }
-        @media (max-width: 576px) {
-            h2 { font-size: 1.4rem; }
-            h4 { font-size: 1.2rem; }
-            .card-title { font-size: 1rem; }
-            .card-img-top { max-height: 150px; }
-            .display-6 { font-size: 1.5rem; }
-        }
+        body { background: #f8fafc; margin-left: var(--sidebar-width); font-family: 'Inter', sans-serif; color: #1e293b; transition: margin 0.3s; }
+        .dashboard-container { padding: 2rem; }
+        .stat-card { border: none; border-radius: 12px; background: white; box-shadow: 0 1px 3px rgba(0,0,0,0.1); transition: transform 0.2s; }
+        .stat-card:hover { transform: translateY(-5px); }
+        .icon-box { width: 48px; height: 48px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.25rem; }
+        .chart-container { background: white; border-radius: 12px; padding: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); height: 100%; }
+        .table-card { background: white; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow: hidden; }
+        .badge { border: none; font-weight: 600; padding: 0.4em 0.8em; }
+        .bg-success { background: #dcfce7; color: #166534; }
+        .bg-warning { background: #fef9c3; color: #854d0e; }
+        .bg-danger { background: #fee2e2; color: #991b1b; }
+        @media (max-width: 992px) { body { margin-left: 0; } }
     </style>
 </head>
 <body>
-    <button class="navbar-toggler d-lg-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#sidebarOffcanvas">
-        <span class="navbar-toggler-icon"></span>
-    </button>
 
-    <?php include('sidebar.php'); ?>
+<?php include('sidebar.php'); ?>
 
-    <div class="container my-4">
-
-        <!-- Alerts Section -->
-        <?php if (!empty($lowStockItems)): ?>
-            <div class="alert alert-warning alert-dismissible fade show" role="alert">
-                <strong><i class="fas fa-exclamation-triangle"></i> Low Stock Alert!</strong>
-                <ul class="mb-0 mt-2">
-                    <?php foreach ($lowStockItems as $item): ?>
-                        <li><strong><?= htmlspecialchars($item['name']) ?></strong> (Qty: <?= $item['quantity'] ?>) at <em><?= htmlspecialchars($item['branch_name']) ?></em></li>
-                    <?php endforeach; ?>
-                </ul>
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            </div>
-        <?php endif; ?>
-
-        <?php if (!empty($recentSales)): ?>
-            <div class="alert alert-success alert-dismissible fade show" role="alert">
-                <strong><i class="fas fa-shopping-cart"></i> Recent Sales</strong>
-                <ul class="mb-0 mt-2">
-                    <?php foreach ($recentSales as $sale): ?>
-                        <li>Sale #<?= $sale['id'] ?> - RS:<?= number_format($sale['total_amount'], 2) ?> (<?= $sale['payment_method'] ?>) at <?= htmlspecialchars($sale['branch_name']) ?></li>
-                    <?php endforeach; ?>
-                </ul>
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            </div>
-        <?php endif; ?>
-
-        <!-- User Profile -->
-        <h2><i class="fas fa-user-circle me-2"></i>Your Profile</h2>
-        <table class="table table-bordered w-100 w-md-50 mb-5">
-            <tbody>
-                <tr><th><i class="fas fa-id-badge me-1"></i>Name</th><td><?= htmlspecialchars($name) ?></td></tr>
-                <tr><th><i class="fas fa-envelope me-1"></i>Email</th><td><?= htmlspecialchars($email) ?></td></tr>
-                <tr><th><i class="fas fa-store me-1"></i>Shop Name</th><td><?= htmlspecialchars($shop_name ?: '-') ?></td></tr>
-                <tr><th><i class="fas fa-calendar-alt me-1"></i>Member Since</th><td><?= htmlspecialchars($created_at) ?></td></tr>
-            </tbody>
-        </table>
-
-        <!-- Summary Cards -->
-        <div class="row g-4 mb-5">
-            <div class="col-md-3">
-                <div class="card shadow-sm text-center">
-                    <div class="card-header bg-primary text-white">
-                        <h5 class="card-title m-0"><i class="fas fa-store-alt me-2"></i>Branches</h5>
-                    </div>
-                    <div class="card-body">
-                        <p class="display-6 text-primary"><?= $totalBranches ?></p>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="card shadow-sm text-center">
-                    <div class="card-header bg-warning text-dark">
-                        <h5 class="card-title m-0"><i class="fas fa-user-tie me-2"></i>Managers</h5>
-                    </div>
-                    <div class="card-body">
-                        <p class="display-6 text-warning"><?= $countManagers ?></p>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="card shadow-sm text-center">
-                    <div class="card-header bg-success text-white">
-                        <h5 class="card-title m-0"><i class="fas fa-boxes me-2"></i>Products</h5>
-                    </div>
-                    <div class="card-body">
-                        <p class="display-6 text-success"><?= $countProducts ?></p>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="card shadow-sm text-center">
-                    <div class="card-header bg-danger text-white">
-                        <h5 class="card-title m-0"><i class="fas fa-exclamation-triangle me-2"></i>Low Stock</h5>
-                    </div>
-                    <div class="card-body">
-                        <p class="display-6 text-danger"><?= $lowStockCount ?></p>
-                    </div>
-                </div>
-            </div>
+<div class="dashboard-container">
+    <div class="d-flex justify-content-between align-items-center mb-5">
+        <div>
+            <h2 class="fw-bold mb-1">Business Overview</h2>
+            <p class="text-muted mb-0">Welcome back, <strong><?= htmlspecialchars($owner_name) ?></strong></p>
         </div>
-
-        <!-- Charts Row -->
-        <div class="row g-4 mb-5">
-            <div class="col-md-6">
-                <div class="card shadow-sm">
-                    <div class="card-header bg-info text-white">
-                        <h5 class="card-title m-0"><i class="fas fa-chart-line me-2"></i>Sales Trend (Last 7 Days)</h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="chart-container">
-                            <canvas id="salesChart"></canvas>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-6">
-                <div class="card shadow-sm">
-                    <div class="card-header bg-purple text-white" style="background-color: #6f42c1;">
-                        <h5 class="card-title m-0"><i class="fas fa-chart-bar me-2"></i>Products per Branch</h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="chart-container">
-                            <canvas id="branchChart"></canvas>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        
-
-        <!-- Branches Preview -->
-        <h4>Branches</h4>
-        <div class="row row-cols-1 row-cols-md-3 g-3 mb-5">
-            <?php foreach ($branches as $branch): ?>
-                <div class="col">
-                    <div class="card shadow-sm h-100">
-                        <div class="card-header bg-info text-white">
-                            <h5 class="card-title m-0"><i class="fas fa-store-alt me-2"></i> <?= htmlspecialchars($branch['name']) ?></h5>
-                        </div>
-                        <div class="card-body">
-                            <p class="card-text"><small class="text-muted">Branch ID: <?= $branch['id'] ?></small></p>
-                        </div>
-                    </div>
-                </div>
-            <?php endforeach; ?>
-            <?php if (empty($branches)): ?>
-                <p class="text-muted">No branches found.</p>
-            <?php endif; ?>
-        </div>
-
-        <!-- Recent Managers -->
-        <h4>Recent Managers</h4>
-        <div class="row row-cols-1 row-cols-md-3 g-3 mb-5">
-            <?php foreach ($managers as $manager): ?>
-                <div class="col">
-                    <div class="card shadow-sm h-100">
-                        <div class="card-header bg-secondary text-white">
-                            <h5 class="card-title m-0"><i class="fas fa-user-tie me-2"></i> <?= htmlspecialchars($manager['full_name']) ?></h5>
-                        </div>
-                        <div class="card-body">
-                            <p class="card-text"><i class="fas fa-envelope me-1"></i> <?= htmlspecialchars($manager['email']) ?></p>
-                            <p class="card-text"><small class="text-muted">Branch: <?= htmlspecialchars($manager['branch_name']) ?></small></p>
-                        </div>
-                    </div>
-                </div>
-            <?php endforeach; ?>
-            <?php if (empty($managers)): ?>
-                <p class="text-muted">No managers found.</p>
-            <?php endif; ?>
-        </div>
-
-        <!-- Recent Products -->
-        <h4>Recent Products</h4>
-        <div class="row row-cols-1 row-cols-md-3 g-3 mb-5">
-            <?php foreach ($products as $product): ?>
-                <div class="col">
-                    <div class="card shadow-sm h-100">
-                        <?php if ($product['image'] && file_exists('images/' . $product['image'])): ?>
-                            <img src="images/<?= htmlspecialchars($product['image']) ?>" class="card-img-top" alt="<?= htmlspecialchars($product['name']) ?>">
-                        <?php else: ?>
-                            <div class="no-image">No Image</div>
-                        <?php endif; ?>
-                        <div class="card-body">
-                            <h5 class="card-title"><i class="fas fa-box me-2"></i> <?= htmlspecialchars($product['name']) ?></h5>
-                            <p class="card-text">RS: <?= number_format($product['price'], 2) ?> | Qty: <?= (int)$product['quantity'] ?></p>
-                            <p class="card-text"><small class="text-muted">Branch: <?= htmlspecialchars($product['branch_name']) ?></small></p>
-                        </div>
-                    </div>
-                </div>
-            <?php endforeach; ?>
-            <?php if (empty($products)): ?>
-                <p class="text-muted">No products found.</p>
-            <?php endif; ?>
+        <div class="bg-white border px-3 py-2 rounded-3 shadow-sm">
+            <i class="far fa-calendar-alt text-primary me-2"></i><?= date('D, M j, Y') ?>
         </div>
     </div>
 
-    <footer class="bg-light text-center">
-        <div class="social-icons">
-            <a href="#"><i class="fab fa-twitter"></i></a>
-            <a href="#"><i class="fab fa-facebook-f"></i></a>
-            <a href="#"><i class="fab fa-linkedin-in"></i></a>
+    <div class="row g-4 mb-5">
+        <div class="col-md-3">
+            <div class="card stat-card p-3 border-start border-4 border-primary">
+                <div class="d-flex align-items-center">
+                    <div class="icon-box bg-primary text-white me-3"><i class="fas fa-coins"></i></div>
+                    <div>
+                        <small class="text-muted fw-bold">TODAY'S SALES</small>
+                        <h4 class="fw-bold mb-0">Rs <?= number_format($today_sales) ?></h4>
+                    </div>
+                </div>
+            </div>
         </div>
-        <p class="mt-2">© 2025 Karobar.com. All rights reserved.</p>
-    </footer>
+        <div class="col-md-3">
+            <div class="card stat-card p-3 border-start border-4 border-success">
+                <div class="d-flex align-items-center">
+                    <div class="icon-box bg-success text-white me-3"><i class="fas fa-chart-line"></i></div>
+                    <div>
+                        <small class="text-muted fw-bold">MONTH SALES</small>
+                        <h4 class="fw-bold mb-0">Rs <?= number_format($month_sales) ?></h4>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stat-card p-3 border-start border-4 border-danger">
+                <div class="d-flex align-items-center">
+                    <div class="icon-box bg-danger text-white me-3"><i class="fas fa-user-clock"></i></div>
+                    <div>
+                        <small class="text-muted fw-bold">TOTAL CREDIT</small>
+                        <h4 class="fw-bold mb-0">Rs <?= number_format($total_credit) ?></h4>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stat-card p-3 border-start border-4 border-warning">
+                <div class="d-flex align-items-center">
+                    <div class="icon-box bg-warning text-white me-3"><i class="fas fa-box-open"></i></div>
+                    <div>
+                        <small class="text-muted fw-bold">LOW STOCK</small>
+                        <h4 class="fw-bold mb-0"><?= $product_stats['low_stock'] ?? 0 ?></h4>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <div class="row g-4 mb-5">
+        <div class="col-lg-8">
+            <div class="chart-container">
+                <h6 class="fw-bold mb-4 text-uppercase small text-muted">Sales Performance (30 Days)</h6>
+                <div style="height: 300px;"><canvas id="salesTrendChart"></canvas></div>
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <div class="chart-container">
+                <h6 class="fw-bold mb-4 text-uppercase small text-muted">Payment Methods</h6>
+                <div style="height: 300px;"><canvas id="paymentChart"></canvas></div>
+            </div>
+        </div>
+    </div>
 
-    <!-- Chart.js Scripts -->
-    <script>
-        // Sales Trend Line Chart
-        const salesCtx = document.getElementById('salesChart').getContext('2d');
-        new Chart(salesCtx, {
-            type: 'line',
-            data: {
-                labels: <?= json_encode($salesChartLabels) ?>,
-                datasets: [{
-                    label: 'Daily Sales (RS)',
-                    data: <?= json_encode($salesChartData) ?>,
-                    borderColor: '#0d6efd',
-                    backgroundColor: 'rgba(13, 110, 253, 0.1)',
-                    tension: 0.4,
-                    fill: true
-                }]
-            },
-            options: { responsive: true, maintainAspectRatio: false }
-        });
+    <div class="row g-4">
+        <div class="col-lg-7">
+            <div class="table-card">
+                <div class="p-3 border-bottom d-flex justify-content-between">
+                    <h6 class="fw-bold mb-0">Recent Transactions</h6>
+                    <a href="sales_history.php" class="small text-decoration-none">View All</a>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0 align-middle">
+                        <thead class="bg-dark">
+                            <tr>
+                                <th class="border-0">Order ID</th>
+                                <th class="border-0">Branch</th>
+                                <th class="border-0">Amount</th>
+                                <th class="border-0">Method</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($recent_sales as $sale): ?>
+                            <tr>
+                                <td class="fw-medium">#<?= $sale['id'] ?></td>
+                                <td><?= htmlspecialchars($sale['branch']) ?></td>
+                                <td class="fw-bold">Rs <?= number_format($sale['total_amount']) ?></td>
+                                <td>
+                                    <span class="badge badge <?= $sale['payment_method'] === 'Cash' ? 'bg-success' : 'bg-warning' ?>">
+                                        <?= $sale['payment_method'] ?>
+                                    </span>
+                                </td>
+                            </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-5">
+            <div class="table-card">
+                <div class="p-3 border-bottom">
+                    <h6 class="fw-bold mb-0">Branch Health Overview</h6>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-borderless mb-0">
+                        <thead>
+                            <tr class="text-muted small">
+                                <th>Branch</th>
+                                <th>Sales</th>
+                                <th>Alerts</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($branch_health as $bh): ?>
+                            <tr>
+                                <td class="fw-bold"><?= htmlspecialchars($bh['name']) ?></td>
+                                <td>Rs <?= number_format($bh['total_sales']) ?></td>
+                                <td>
+                                    <?php if ($bh['low_stock_count'] > 0): ?>
+                                        <span class="badge bg-danger"><?= $bh['low_stock_count'] ?> Low Stock</span>
+                                    <?php else: ?>
+                                        <span class="badge bg-success">OK</span>
+                                    <?php endif; ?>
+                                </td>
+                            </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 
-        // Branch Products Bar Chart
-        const branchCtx = document.getElementById('branchChart').getContext('2d');
-        new Chart(branchCtx, {
-            type: 'bar',
-            data: {
-                labels: <?= json_encode(array_column($branches, 'name')) ?>,
-                datasets: [{
-                    label: 'Products',
-                    data: <?= json_encode($branchProductCounts) ?>,
-                    backgroundColor: ['#6f42c1', '#0d6efd', '#198754', '#ffc107', '#dc3545']
-                }]
-            },
-            options: { responsive: true, maintainAspectRatio: false }
-        });
+<script>
+// Main Sales Line Chart
+const ctxTrend = document.getElementById('salesTrendChart').getContext('2d');
+new Chart(ctxTrend, {
+    type: 'line',
+    data: {
+        labels: <?= json_encode($sales_trend_labels) ?>,
+        datasets: [{
+            data: <?= json_encode($sales_trend_data) ?>,
+            borderColor: '#4f46e5',
+            backgroundColor: 'rgba(79, 70, 229, 0.1)',
+            fill: true,
+            tension: 0.4,
+            pointRadius: 2
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+            x: { grid: { display: false } },
+            y: { border: { dash: [5,5] } }
+        }
+    }
+});
 
-        
-    </script>
+// Payment Doughnut Chart
+new Chart(document.getElementById('paymentChart'), {
+    type: 'doughnut',
+    data: {
+        labels: ['Cash', 'Credit'],
+        datasets: [{
+            data: [<?= $payment_labels['Cash'] ?>, <?= $payment_labels['Credit'] ?>],
+            backgroundColor: ['#10b981', '#f59e0b'],
+            borderWidth: 5,
+            borderColor: '#ffffff'
+        }]
+    },
+    options: {
+        cutout: '75%',
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { position: 'bottom' } }
+    }
+});
+</script>
 </body>
 </html>

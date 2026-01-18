@@ -108,9 +108,10 @@ $result = mysqli_stmt_get_result($stmt);
         <button class="btn btn-success mb-3" data-bs-toggle="modal" data-bs-target="#upsertModal" data-action="add">
             <i class="fas fa-user-plus"></i> Add Customer
         </button>
-
-        <table class="table table-bordered table-hover align-middle">
-            <thead class="table-light">
+    <div class="table-container">
+        <div class="table-responsive">
+<table class="table table-bordered table-hover align-middle">
+            <thead class="table-dark">
                 <tr>
                     <th>ID</th>
                     <th>Name</th>

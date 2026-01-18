@@ -14,7 +14,7 @@ $items_data = [];
 
 if ($sale_id > 0) {
     // 1. Fetch main Sale details (s.* includes total_amount and cash_received)
-    $sql_sale = "SELECT s.*, c.name AS customer_name, c.phone_number, sp.name AS salesperson_name 
+    $sql_sale = "SELECT s.*, c.name AS customer_name, c.phone_number, c.id AS customer_pk_id, sp.name AS salesperson_name 
                  FROM sales s
                  JOIN customers c ON s.customer_id = c.id
                  JOIN salespersons sp ON s.salesperson_id = sp.id
@@ -48,22 +48,25 @@ if (!$invoice_data) {
     die("Invoice not found or you don't have access.");
 }
 
-// Fetch Khata balance and the net amount added by this sale
-$khata_balance = null;
-$khata_entry = null;
+// --- UPDATED KHATA BALANCE CALCULATION (ABSOLUTE CURRENT BALANCE) ---
+$customer_id = $invoice_data['customer_pk_id'];
+$absolute_khata_balance = 0; // Initialize balance
 
-if ($invoice_data['payment_method'] === 'Credit') {
-    // Fetch the khata entry created by this sale (to get the net balance added/removed)
-    $sql_khata_entry = "SELECT amount FROM khata WHERE sale_id = ? LIMIT 1";
-    $stmt_khata_entry = mysqli_prepare($conn, $sql_khata_entry);
-    mysqli_stmt_bind_param($stmt_khata_entry, "i", $sale_id);
-    mysqli_stmt_execute($stmt_khata_entry);
-    $result_khata_entry = mysqli_stmt_get_result($stmt_khata_entry);
-    $khata_entry = mysqli_fetch_assoc($result_khata_entry);
-    mysqli_stmt_close($stmt_khata_entry);
-
+// Calculate the TOTAL Khata Balance for the customer by summing the entire 'amount' column.
+// This includes the entry for the current sale, reflecting the final running total.
+if ($customer_id) {
+    $sql_khata_balance = "SELECT SUM(amount) AS current_balance FROM khata WHERE customer_id = ?";
     
+    $stmt_balance = mysqli_prepare($conn, $sql_khata_balance);
+    // Bind only customer_id
+    mysqli_stmt_bind_param($stmt_balance, "i", $customer_id);
+    mysqli_stmt_execute($stmt_balance);
+    $result_balance = mysqli_stmt_get_result($stmt_balance);
+    $balance_row = mysqli_fetch_assoc($result_balance);
+    $absolute_khata_balance = (float)$balance_row['current_balance'];
+    mysqli_stmt_close($stmt_balance);
 }
+// --- END UPDATED KHATA BALANCE CALCULATION ---
 
 mysqli_close($conn);
 ?>
@@ -77,7 +80,6 @@ mysqli_close($conn);
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css" rel="stylesheet">
     <style>
-        /* ... (CSS Styles remain the same) ... */
         body { font-family: 'Arial', sans-serif; background-color: #f8f9fa; }
         .invoice-container { max-width: 80mm; margin: 20px auto; padding: 10px; background: #fff; border: 1px solid #ccc; font-size: 10px; }
         .invoice-header { text-align: center; border-bottom: 1px dashed #ccc; padding-bottom: 5px; margin-bottom: 10px; }
@@ -169,22 +171,33 @@ mysqli_close($conn);
                     <p style="color:green;">Net Advance (Jama) Recorded: <strong><?php echo number_format(abs($net_khata_amount), 2); ?></strong></p>
                 <?php endif; ?>
 
-                <?php if ($khata_balance !== null): ?>
-                    <p>New Khata Balance: <strong><?php echo number_format($khata_balance, 2); ?></strong></p>
-                <?php endif; ?>
-            <?php else: ?>
+                <p>Customer Khata Balance: 
+                    <?php if ($absolute_khata_balance > 0): ?>
+                        <strong style="color:red;">Udhaar: <?php echo number_format($absolute_khata_balance, 2); ?></strong>
+                    <?php elseif ($absolute_khata_balance < 0): ?>
+                        <strong style="color:green;">Advance: <?php echo number_format(abs($absolute_khata_balance), 2); ?></strong>
+                    <?php else: ?>
+                        <strong>0.00</strong>
+                    <?php endif; ?>
+                </p>
+
+            <?php else: // Payment Method is Cash or other non-credit payment ?>
                 <p>Cash Paid: <strong><?php echo number_format($grand_total, 2); ?></strong></p>
+                
+                <p>Customer Khata Balance: 
+                    <?php if ($absolute_khata_balance > 0): ?>
+                        <strong style="color:red;">Udhaar: <?php echo number_format($absolute_khata_balance, 2); ?></strong>
+                    <?php elseif ($absolute_khata_balance < 0): ?>
+                        <strong style="color:green;">Advance: <?php echo number_format(abs($absolute_khata_balance), 2); ?></strong>
+                    <?php else: ?>
+                        <strong>0.00</strong>
+                    <?php endif; ?>
+                </p>
             <?php endif; ?>
 
             <p>Thank you for your business!</p>
         </div>
     </div>
     
-    <script>
-        // Automatic print on load (Remains the same)
-        window.onload = function() {
-            window.print();
-        }
-    </script>
 </body>
 </html>

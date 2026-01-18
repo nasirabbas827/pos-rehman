@@ -17,7 +17,6 @@
       margin-left: 280px;
     }
 
-    /* Fixed Sidebar for desktop */
     nav.sidebar {
       width: 280px;
       height: 100vh;
@@ -28,22 +27,22 @@
       color: white;
       padding: 1rem;
       z-index: 1000;
-      overflow-y: auto; /* Enable scrolling */
+      overflow-y: auto;
     }
 
     .nav-link {
-      font-size: clamp(0.9rem, 2.5vw, 1rem);
+      font-size: 0.95rem;
       transition: background-color 0.3s;
       color: white;
-      padding: 0.5rem 1rem;
+      padding: 0.55rem 1rem;
       border-radius: 0.25rem;
     }
 
-    .nav-link:hover {
-      background-color: #007bff;
+    .nav-link:hover,
+    .nav-link.active {
+      background-color: #0d6efd;
     }
 
-    /* Mobile hamburger button */
     .toggle-btn {
       display: none;
       position: fixed;
@@ -52,7 +51,6 @@
       z-index: 1100;
     }
 
-    /* Hide fixed sidebar on mobile */
     @media (max-width: 992px) {
       body {
         margin-left: 0 !important;
@@ -60,10 +58,6 @@
 
       nav.sidebar {
         display: none !important;
-        position: absolute !important;
-        width: 0 !important;
-        height: 0 !important;
-        overflow: hidden !important;
       }
 
       .toggle-btn {
@@ -71,7 +65,6 @@
       }
     }
 
-    /* Style offcanvas sidebar */
     .offcanvas {
       width: 280px;
       background-color: #212529;
@@ -79,165 +72,126 @@
 
     .offcanvas .nav-link {
       color: white;
-      padding: 0.5rem 1rem;
-      border-radius: 0.25rem;
     }
 
-    .offcanvas .nav-link:hover {
-      background-color: #007bff;
-    }
-
-    .offcanvas-body {
-      overflow-y: auto; /* Enable scrolling in offcanvas */
-    }
-
-    @media (max-width: 576px) {
-      .nav-link {
-        font-size: 0.875rem;
-      }
-
-      .offcanvas-title {
-        font-size: 1.2rem;
-      }
+    .offcanvas .nav-link:hover,
+    .offcanvas .nav-link.active {
+      background-color: #0d6efd;
     }
   </style>
 </head>
 <body>
 
-<!-- 🔘 Hamburger Button (mobile only) -->
-<button class="btn btn-primary toggle-btn" type="button"
-        data-bs-toggle="offcanvas" data-bs-target="#sidebarOffcanvas"
-        aria-controls="sidebarOffcanvas">
+<!-- Mobile Toggle -->
+<button class="btn btn-primary toggle-btn"
+        data-bs-toggle="offcanvas"
+        data-bs-target="#sidebarOffcanvas">
   <i class="fas fa-bars"></i>
 </button>
 
-<!-- 🧱 Fixed Sidebar (desktop only) -->
-<nav class="sidebar d-flex flex-column flex-shrink-0 p-3 bg-dark text-white">
+<!-- Desktop Sidebar -->
+<nav class="sidebar">
   <a href="#" class="d-flex align-items-center mb-3 text-white text-decoration-none">
     <i class="fas fa-scale-balanced me-2"></i>
     <span class="fs-4">Karobar.com</span>
   </a>
   <hr>
-  <ul class="nav nav-pills flex-column mb-auto">
+
+  <?php $page = basename($_SERVER['PHP_SELF']); ?>
+
+  <ul class="nav nav-pills flex-column gap-1">
     <li class="nav-item">
-      <a class="nav-link text-white" href="owner_dashboard.php">
+      <a class="nav-link <?= $page=='owner_dashboard.php'?'active':'' ?>" href="owner_dashboard.php">
         <i class="fas fa-tachometer-alt me-2"></i> Dashboard
       </a>
     </li>
+
     <li class="nav-item">
-      <a class="nav-link text-white" href="update_profile.php">
+      <a class="nav-link <?= $page=='update_profile.php'?'active':'' ?>" href="update_profile.php">
         <i class="fas fa-user-edit me-2"></i> Profile
       </a>
     </li>
+
     <li class="nav-item">
-      <a class="nav-link text-white" href="branches.php">
+      <a class="nav-link <?= $page=='branches.php'?'active':'' ?>" href="branches.php">
         <i class="fas fa-store me-2"></i> Branches
       </a>
     </li>
+
     <li class="nav-item">
-      <a class="nav-link text-white" href="categories.php">
+      <a class="nav-link <?= $page=='categories.php'?'active':'' ?>" href="categories.php">
         <i class="fas fa-list me-2"></i> Categories
       </a>
     </li>
+
     <li class="nav-item">
-      <a class="nav-link text-white" href="managers.php">
+      <a class="nav-link <?= $page=='managers.php'?'active':'' ?>" href="managers.php">
         <i class="fas fa-user-tie me-2"></i> Managers
       </a>
     </li>
+
     <li class="nav-item">
-      <a class="nav-link text-white" href="products.php">
+      <a class="nav-link <?= $page=='products.php'?'active':'' ?>" href="products.php">
         <i class="fas fa-box me-2"></i> Products
       </a>
     </li>
+
     <li class="nav-item">
-      <a class="nav-link text-white" href="salespersons.php">
+      <a class="nav-link <?= $page=='salespersons.php'?'active':'' ?>" href="salespersons.php">
         <i class="fas fa-user-tag me-2"></i> Sales Person
       </a>
     </li>
+
     <li class="nav-item">
-      <a class="nav-link text-white" href="customers.php">
+      <a class="nav-link <?= $page=='customers.php'?'active':'' ?>" href="customers.php">
         <i class="fas fa-users me-2"></i> Customers
       </a>
     </li>
+
     <li class="nav-item">
-      <a class="nav-link text-white" href="sales_history.php">
+      <a class="nav-link <?= $page=='sales_history.php'?'active':'' ?>" href="sales_history.php">
         <i class="fas fa-chart-line me-2"></i> Sales History
       </a>
     </li>
+
     <li class="nav-item">
-      <a class="nav-link text-white" href="logout.php">
+      <a class="nav-link <?= $page=='notifications.php'?'active':'' ?>" href="notifications.php">
+        <i class="fas fa-bell me-2"></i> Notifications
+      </a>
+    </li>
+
+    <li class="nav-item mt-2">
+      <a class="nav-link text-danger" href="logout.php">
         <i class="fas fa-sign-out-alt me-2"></i> Logout
       </a>
     </li>
   </ul>
 </nav>
 
-<!-- 📱 Offcanvas Sidebar (mobile only) -->
-<div class="offcanvas offcanvas-start bg-dark text-white" tabindex="-1" id="sidebarOffcanvas" aria-labelledby="sidebarOffcanvasLabel">
+<!-- Mobile Offcanvas Sidebar -->
+<div class="offcanvas offcanvas-start text-white" id="sidebarOffcanvas">
   <div class="offcanvas-header">
-    <h5 class="offcanvas-title" id="sidebarOffcanvasLabel">
-      <i class="fas fa-scale-balanced me-2"></i>Karobar.com
-    </h5>
-    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+    <h5><i class="fas fa-scale-balanced me-2"></i>Karobar.com</h5>
+    <button class="btn-close btn-close-white" data-bs-dismiss="offcanvas"></button>
   </div>
+
   <div class="offcanvas-body">
-    <ul class="nav nav-pills flex-column mb-auto">
-      <li class="nav-item">
-        <a class="nav-link text-white" href="owner_dashboard.php">
-          <i class="fas fa-tachometer-alt me-2"></i> Dashboard
-        </a>
-      </li>
-      <li class="nav-item">
-        <a class="nav-link text-white" href="update_profile.php">
-          <i class="fas fa-user-edit me-2"></i> Profile
-        </a>
-      </li>
-      <li class="nav-item">
-        <a class="nav-link text-white" href="branches.php">
-          <i class="fas fa-store me-2"></i> Branches
-        </a>
-      </li>
-      <li class="nav-item">
-        <a class="nav-link text-white" href="categories.php">
-          <i class="fas fa-list me-2"></i> Categories
-        </a>
-      </li>
-      <li class="nav-item">
-        <a class="nav-link text-white" href="managers.php">
-          <i class="fas fa-user-tie me-2"></i> Managers
-        </a>
-      </li>
-      <li class="nav-item">
-        <a class="nav-link text-white" href="products.php">
-          <i class="fas fa-box me-2"></i> Products
-        </a>
-      </li>
-      <li class="nav-item">
-        <a class="nav-link text-white" href="salespersons.php">
-          <i class="fas fa-user-tag me-2"></i> Sales Person
-        </a>
-      </li>
-      <li class="nav-item">
-        <a class="nav-link text-white" href="customers.php">
-          <i class="fas fa-users me-2"></i> Customers
-        </a>
-      </li>
-      <li class="nav-item">
-        <a class="nav-link text-white" href="sales_history.php">
-          <i class="fas fa-chart-line me-2"></i> Sales History
-        </a>
-      </li>
-      <li class="nav-item">
-        <a class="nav-link text-white" href="logout.php">
-          <i class="fas fa-sign-out-alt me-2"></i> Logout
-        </a>
-      </li>
+    <ul class="nav nav-pills flex-column gap-1">
+      <li><a class="nav-link" href="owner_dashboard.php"><i class="fas fa-tachometer-alt me-2"></i> Dashboard</a></li>
+      <li><a class="nav-link" href="update_profile.php"><i class="fas fa-user-edit me-2"></i> Profile</a></li>
+      <li><a class="nav-link" href="branches.php"><i class="fas fa-store me-2"></i> Branches</a></li>
+      <li><a class="nav-link" href="categories.php"><i class="fas fa-list me-2"></i> Categories</a></li>
+      <li><a class="nav-link" href="managers.php"><i class="fas fa-user-tie me-2"></i> Managers</a></li>
+      <li><a class="nav-link" href="products.php"><i class="fas fa-box me-2"></i> Products</a></li>
+      <li><a class="nav-link" href="salespersons.php"><i class="fas fa-user-tag me-2"></i> Sales Person</a></li>
+      <li><a class="nav-link" href="customers.php"><i class="fas fa-users me-2"></i> Customers</a></li>
+      <li><a class="nav-link" href="sales_history.php"><i class="fas fa-chart-line me-2"></i> Sales History</a></li>
+      <li><a class="nav-link" href="notifications.php"><i class="fas fa-bell me-2"></i> Notifications</a></li>
+      <li><a class="nav-link text-danger" href="logout.php"><i class="fas fa-sign-out-alt me-2"></i> Logout</a></li>
     </ul>
   </div>
 </div>
 
-<!-- ✅ Bootstrap JS (Bundle includes Popper) -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-
 </body>
 </html>

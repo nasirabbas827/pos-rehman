@@ -105,7 +105,7 @@ $result = mysqli_query($conn, "SELECT id, name, email, phone_number, shop_name, 
         <h2 class="mb-4"><i class="fas fa-users me-2"></i>All Shop Owners</h2>
         <div class="table-responsive">
             <table class="table table-bordered table-hover mt-3">
-                <thead class="table-light">
+                <thead class="table-dark">
                     <tr>
                         <th><i class="fas fa-id-badge me-1"></i>ID</th>
                         <th><i class="fas fa-user me-1"></i>Name</th>

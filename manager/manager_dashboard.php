@@ -6,203 +6,225 @@ if (!isset($_SESSION["id"]) || $_SESSION["role"] !== "manager") {
 }
 
 include('../config.php');
-
 $manager_id = $_SESSION["id"];
 
-// Fetch manager info along with branch_id
-$sql_manager = "SELECT full_name, email, branch_id FROM managers WHERE id = ?";
-$stmt_manager = mysqli_prepare($conn, $sql_manager);
-mysqli_stmt_bind_param($stmt_manager, "i", $manager_id);
-mysqli_stmt_execute($stmt_manager);
-mysqli_stmt_bind_result($stmt_manager, $full_name, $email, $branch_id);
-mysqli_stmt_fetch($stmt_manager);
-mysqli_stmt_close($stmt_manager);
+// 1. Get Manager & Branch Info
+$stmt = $conn->prepare("SELECT m.full_name, m.branch_id, b.name as branch_name 
+                        FROM managers m 
+                        JOIN branches b ON m.branch_id = b.id 
+                        WHERE m.id = ?");
+$stmt->bind_param("i", $manager_id);
+$stmt->execute();
+$manager_data = $stmt->get_result()->fetch_assoc();
+$branch_id = $manager_data['branch_id'];
+$branch_name = $manager_data['branch_name'];
+$stmt->close();
 
-// Fetch products for manager's branch only
-$sql_products = "SELECT p.id, p.name, p.description, p.price, p.quantity, p.image, b.name AS branch_name
-                 FROM products p
-                 LEFT JOIN branches b ON p.branch_id = b.id
-                 WHERE p.branch_id = ?
-                 ORDER BY p.created_at DESC";
-$stmt_products = mysqli_prepare($conn, $sql_products);
-mysqli_stmt_bind_param($stmt_products, "i", $branch_id);
-mysqli_stmt_execute($stmt_products);
-$result_products = mysqli_stmt_get_result($stmt_products);
+// 2. Stats: Today's Sales
+$today = date('Y-m-d');
+$stmt = $conn->prepare("SELECT SUM(total_amount) as total FROM sales WHERE branch_id = ? AND DATE(sale_date) = ?");
+$stmt->bind_param("is", $branch_id, $today);
+$stmt->execute();
+$sales_today = $stmt->get_result()->fetch_assoc()['total'] ?? 0;
+
+// 3. Stats: Low Stock Count
+$stmt = $conn->prepare("SELECT COUNT(*) as count FROM products WHERE branch_id = ? AND quantity <= low_stock_threshold");
+$stmt->bind_param("i", $branch_id);
+$stmt->execute();
+$low_stock_count = $stmt->get_result()->fetch_assoc()['count'];
+
+// 4. Stats: Total Staff
+$stmt = $conn->prepare("SELECT COUNT(*) as count FROM salespersons WHERE branch_id = ?");
+$stmt->bind_param("i", $branch_id);
+$stmt->execute();
+$staff_count = $stmt->get_result()->fetch_assoc()['count'];
+
+// 5. Chart Data: Last 7 Days Sales
+$sales_labels = [];
+$sales_values = [];
+$sql_chart = "SELECT DATE(sale_date) as date, SUM(total_amount) as daily_total 
+              FROM sales WHERE branch_id = ? AND sale_date >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+              GROUP BY DATE(sale_date) ORDER BY DATE(sale_date) ASC";
+$stmt_c = $conn->prepare($sql_chart);
+$stmt_c->bind_param("i", $branch_id);
+$stmt_c->execute();
+$chart_res = $stmt_c->get_result();
+while($row = $chart_res->fetch_assoc()){
+    $sales_labels[] = date('D', strtotime($row['date']));
+    $sales_values[] = (float)$row['daily_total'];
+}
+
+// 6. Recent Sales List
+$stmt = $conn->prepare("SELECT s.*, c.name as customer_name 
+                        FROM sales s 
+                        LEFT JOIN customers c ON s.customer_id = c.id 
+                        WHERE s.branch_id = ? 
+                        ORDER BY s.sale_date DESC LIMIT 5");
+$stmt->bind_param("i", $branch_id);
+$stmt->execute();
+$recent_sales = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+
+$conn->close();
 ?>
 
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8" />
-    <title>Manager Dashboard</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css" rel="stylesheet" />
+    <meta charset="UTF-8">
+    <title>Dashboard - <?= htmlspecialchars($branch_name) ?></title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        body {
-            background-color: #e6effc; /* Consistent with other pages */
-            font-family: Arial, sans-serif;
-            margin-left: 280px; /* Space for sidebar */
-        }
-
-        .container {
-            padding: 2rem 1rem;
-        }
-
-        h2 {
-            color: #333;
-            font-size: clamp(1.4rem, 4vw, 1.8rem);
-            margin-bottom: 1.5rem;
-        }
-
-        h4 {
-            color: #333;
-            font-size: clamp(1.2rem, 3vw, 1.5rem);
-            margin-bottom: 1rem;
-        }
-
-        .table {
-            background-color: #fff;
-            border-radius: 8px;
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-        }
-
-        .table th {
-            background-color: #f8f9fa;
-            font-size: clamp(0.9rem, 2.5vw, 1rem);
-        }
-
-        .table td {
-            font-size: clamp(0.85rem, 2.5vw, 0.95rem);
-        }
-
-        .table-hover tbody tr:hover {
-            background-color: #f1f6ff;
-        }
-
-        .product-image {
-            max-width: 100px;
-            max-height: 80px;
-            object-fit: contain;
-            border-radius: 4px;
-        }
-
-        .no-image {
-            color: #666;
-            font-size: clamp(0.85rem, 2.5vw, 0.95rem);
-        }
-
-        /* Hamburger button for mobile */
-        .navbar-toggler {
-            display: none;
-            position: fixed;
-            top: 1rem;
-            left: 1rem;
-            z-index: 1100;
-        }
-
-        
-
-        /* Responsive adjustments */
-        @media (max-width: 992px) {
-            body {
-                margin-left: 0; /* Remove sidebar space on mobile */
-            }
-
-            .container {
-                padding: 1.5rem 1rem;
-            }
-
-            .navbar-toggler {
-                display: block; /* Show hamburger menu */
-            }
-
-            .table {
-                font-size: 0.875rem;
-            }
-
-            .product-image {
-                max-width: 80px;
-                max-height: 60px;
-            }
-        }
-
-        @media (max-width: 576px) {
-            h2 {
-                font-size: 1.4rem;
-            }
-
-            h4 {
-                font-size: 1.2rem;
-            }
-
-            .table th, .table td {
-                font-size: 0.8rem;
-            }
-
-            .product-image {
-                max-width: 60px;
-                max-height: 50px;
-            }
-        }
+        body { background-color: #f0f2f5; font-family: 'Inter', sans-serif; }
+        .stat-card { border: none; border-radius: 15px; color: white; transition: 0.3s; }
+        .stat-card:hover { transform: translateY(-5px); }
+        .bg-primary-grad { background: linear-gradient(45deg, #4e73df, #224abe); }
+        .bg-success-grad { background: linear-gradient(45deg, #1cc88a, #13855c); }
+        .bg-warning-grad { background: linear-gradient(45deg, #f6c23e, #dda20a); }
+        .bg-info-grad { background: linear-gradient(45deg, #36b9cc, #258391); }
+        .card-title-info { font-size: 0.8rem; text-uppercase: uppercase; opacity: 0.8; }
     </style>
 </head>
 <body>
-    <!-- Hamburger button for mobile -->
-    <button class="navbar-toggler" type="button" data-bs-toggle="offcanvas" data-bs-target="#sidebarOffcanvas" aria-controls="sidebarOffcanvas">
-        <span class="navbar-toggler-icon"></span>
-    </button>
 
-    <?php include('manager_sidebar.php'); ?>
+<?php include('manager_sidebar.php'); ?>
 
-    <div class="container py-4">
-        <h2 class="mb-4"><i class="fas fa-tachometer-alt me-2"></i>Welcome, <?php echo htmlspecialchars($full_name); ?></h2>
-
-        <h4>Products in Your Branch</h4>
-        <table class="table table-bordered table-hover align-middle">
-            <thead class="table-light">
-                <tr>
-                    <th><i class="fas fa-hashtag me-1"></i>ID</th>
-                    <th><i class="fas fa-image me-1"></i>Image</th>
-                    <th><i class="fas fa-box me-1"></i>Name</th>
-                    <th><i class="fas fa-file-alt me-1"></i>Description</th>
-                    <th><i class="fas fa-rupee-sign me-1"></i> Price</th>
-                    <th><i class="fas fa-cubes me-1"></i>Quantity</th>
-                    <th><i class="fas fa-store-alt me-1"></i>Branch</th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php if ($result_products && mysqli_num_rows($result_products) > 0): ?>
-                    <?php while ($row = mysqli_fetch_assoc($result_products)): ?>
-                        <tr>
-                            <td><?php echo $row['id']; ?></td>
-                            <td>
-                                <?php if ($row['image']): ?>
-                                    <img src="../owner/images/<?php echo htmlspecialchars($row['image']); ?>" alt="Product Image" class="product-image" />
-                                <?php else: ?>
-                                    <span class="no-image">No image</span>
-                                <?php endif; ?>
-                            </td>
-                            <td><?php echo htmlspecialchars($row['name']); ?></td>
-                            <td><?php echo htmlspecialchars($row['description']); ?></td>
-                            <td><?php echo number_format($row['price'], 2); ?></td>
-                            <td><?php echo (int)$row['quantity']; ?></td>
-                            <td><?php echo htmlspecialchars($row['branch_name'] ?: 'N/A'); ?></td>
-                        </tr>
-                    <?php endwhile; ?>
-                <?php else: ?>
-                    <tr><td colspan="7" class="text-center">No products found in your branch.</td></tr>
-                <?php endif; ?>
-            </tbody>
-        </table>
+<div class="container py-4">
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <h2 class="fw-bold">Welcome, <?= htmlspecialchars($manager_data['full_name']) ?></h2>
+            <p class="text-muted">Branch: <strong><?= htmlspecialchars($branch_name) ?></strong></p>
+        </div>
+        <div class="col-md-4 text-md-end">
+            <div class="p-2 bg-white rounded shadow-sm d-inline-block">
+                <i class="fas fa-calendar-alt me-2 text-primary"></i><?= date('D, M d, Y') ?>
+            </div>
+        </div>
     </div>
 
+    <div class="row g-4 mb-4">
+        <div class="col-md-3">
+            <div class="card stat-card bg-primary-grad p-3 h-100 text-white">
+                <div class="card-body">
+                    <div class="card-title-info">Today's Sales</div>
+                    <h3 class="fw-bold">RS <?= number_format($sales_today, 2) ?></h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stat-card bg-warning-grad p-3 h-100 text-white">
+                <div class="card-body">
+                    <div class="card-title-info">Low Stock Items</div>
+                    <h3 class="fw-bold"><?= $low_stock_count ?></h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stat-card bg-info-grad p-3 h-100 text-white">
+                <div class="card-body">
+                    <div class="card-title-info">Branch Staff</div>
+                    <h3 class="fw-bold"><?= $staff_count ?></h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stat-card bg-success-grad p-3 h-100 text-white">
+                <div class="card-body">
+                    <div class="card-title-info">Khata System</div>
+                    <h3 class="fw-bold">Active</h3>
+                </div>
+            </div>
+        </div>
+    </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card border-0 shadow-sm rounded-4">
+                <div class="card-body p-4">
+                    <h5 class="fw-bold mb-4">Weekly Sales Performance</h5>
+                    <div style="height: 300px;">
+                        <canvas id="salesChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-lg-8">
+            <div class="card border-0 shadow-sm rounded-4 h-100">
+                <div class="card-header bg-white border-0 py-3">
+                    <h5 class="mb-0 fw-bold">Recent Branch Sales</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Customer</th>
+                                    <th>Amount</th>
+                                    <th>Method</th>
+                                    <th>Time</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach($recent_sales as $sale): ?>
+                                <tr>
+                                    <td>#<?= $sale['id'] ?></td>
+                                    <td><?= htmlspecialchars($sale['customer_name'] ?? 'Walk-in') ?></td>
+                                    <td><strong>RS <?= number_format($sale['total_amount'], 2) ?></strong></td>
+                                    <td><span class="badge <?= $sale['payment_method'] == 'Cash' ? 'bg-success' : 'bg-warning' ?>"><?= $sale['payment_method'] ?></span></td>
+                                    <td class="small text-muted"><?= date('h:i A', strtotime($sale['sale_date'])) ?></td>
+                                </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card border-0 shadow-sm rounded-4 h-100">
+                <div class="card-header bg-white border-0 py-3">
+                    <h5 class="mb-0 fw-bold">Quick Actions</h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-3">
+                        <a href="products.php" class="btn btn-outline-primary p-3 text-start"><i class="fas fa-boxes me-2"></i> Manage Stock</a>
+                        <a href="salespersons.php" class="btn btn-outline-primary p-3 text-start"><i class="fas fa-user-tie me-2"></i> Manage Staff</a>
+                        <a href="customers.php" class="btn btn-outline-primary p-3 text-start"><i class="fas fa-users me-2"></i> Customers</a>
+                        <a href="sales_history.php" class="btn btn-outline-danger p-3 text-start"><i class="fas fa-book me-2"></i> Sales History</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const ctx = document.getElementById('salesChart').getContext('2d');
+    new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: <?= json_encode($sales_labels) ?>,
+            datasets: [{
+                label: 'Sales (RS)',
+                data: <?= json_encode($sales_values) ?>,
+                borderColor: '#4e73df',
+                backgroundColor: 'rgba(78, 115, 223, 0.1)',
+                fill: true,
+                tension: 0.3
+            }]
+        },
+        options: {
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: { y: { beginAtZero: true } }
+        }
+    });
+</script>
 </body>
 </html>
-
-<?php 
-mysqli_stmt_close($stmt_products);
-mysqli_close($conn); 
-?>

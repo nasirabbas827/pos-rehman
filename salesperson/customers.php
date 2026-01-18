@@ -92,7 +92,7 @@ $result = mysqli_stmt_get_result($stmt);
         }
         .container { padding: 2rem 1rem; }
         h2 { color: #333; font-size: 1.8rem; margin-bottom: 1.5rem; }
-        .table { background-color: #fff; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        /* .table { background-color: #fff; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); } */
         .table-hover tbody tr:hover { background-color: #f1f6ff; }
         .btn-sm { font-size: 0.85rem; }
         .customer-name-link {
@@ -121,10 +121,10 @@ $result = mysqli_stmt_get_result($stmt);
         <button class="btn btn-success mb-3" data-bs-toggle="modal" data-bs-target="#upsertModal" data-action="add">
             <i class="fas fa-user-plus"></i> Add Customer
         </button>
-
-        <div class="table-responsive">
-            <table class="table table-bordered table-hover align-middle">
-                <thead class="table-light">
+        <div class="table-responsive">          
+    <div class="table-container">
+<table class="table table-bordered table-hover align-middle">
+            <thead class="table-dark">
                     <tr>
                         <th>ID</th>
                         <th>Name</th>

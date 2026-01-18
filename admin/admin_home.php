@@ -2,269 +2,197 @@
 session_start();
 include('config.php');
 
-// Check if the user is logged in as an admin
+// 1. Access Control
 if (!isset($_SESSION["usertype"]) || $_SESSION["usertype"] !== "admin") {
     header("Location: admin_login.php");
     exit;
 }
 
-// Count total users
-$userCount = 0;
-$result = mysqli_query($conn, "SELECT COUNT(*) as total FROM users");
-if ($row = mysqli_fetch_assoc($result)) {
-    $userCount = $row['total'];
-}
+// 2. Summary Statistics
+$stats = [
+    'owners'   => mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) as count FROM users WHERE status='approved'"))['count'],
+    'pending'  => mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) as count FROM users WHERE status='pending'"))['count'],
+    'branches' => mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) as count FROM branches"))['count'],
+    'sales'    => mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) as count FROM sales"))['count']
+];
 
-// Count total managers
-$managerCount = 0;
-$result = mysqli_query($conn, "SELECT COUNT(*) as total FROM managers");
-if ($row = mysqli_fetch_assoc($result)) {
-    $managerCount = $row['total'];
-}
+// 3. Chart Data Queries
 
-// Count total products
-$productCount = 0;
-$result = mysqli_query($conn, "SELECT COUNT(*) as total FROM products");
-if ($row = mysqli_fetch_assoc($result)) {
-    $productCount = $row['total'];
-}
+// Chart 1: Registration Trend (Last 7 Days)
+$regTrend = mysqli_query($conn, "SELECT DATE(created_at) as date, COUNT(*) as total FROM users GROUP BY DATE(created_at) LIMIT 7");
+$chart1_labels = []; $chart1_data = [];
+while($row = mysqli_fetch_assoc($regTrend)) { $chart1_labels[] = $row['date']; $chart1_data[] = $row['total']; }
 
-// Count total branches
-$branchCount = 0;
-$result = mysqli_query($conn, "SELECT COUNT(*) as total FROM branches");
-if ($row = mysqli_fetch_assoc($result)) {
-    $branchCount = $row['total'];
-}
+// Chart 2: Status Distribution
+$statusDist = mysqli_query($conn, "SELECT status, COUNT(*) as total FROM users GROUP BY status");
+$chart2_labels = []; $chart2_data = [];
+while($row = mysqli_fetch_assoc($statusDist)) { $chart2_labels[] = $row['status']; $chart2_data[] = $row['total']; }
 
-// Fetch all users
-$userList = mysqli_query($conn, "SELECT id, name, email, created_at FROM users ORDER BY created_at DESC");
+// Chart 3: Owner-Wise Branch Count
+$ownerBranch = mysqli_query($conn, "SELECT u.name, COUNT(b.id) as bcount FROM users u LEFT JOIN branches b ON u.id = b.owner_id WHERE u.status='approved' GROUP BY u.id LIMIT 10");
+$chart3_labels = []; $chart3_data = [];
+while($row = mysqli_fetch_assoc($ownerBranch)) { $chart3_labels[] = $row['name']; $chart3_data[] = $row['bcount']; }
+
+// 4. Fetch User Approval Queue
+$approvalQueue = mysqli_query($conn, "SELECT * FROM users WHERE status = 'pending' ORDER BY created_at DESC");
+
+// 5. Fetch Active Owners
+$activeOwners = mysqli_query($conn, "SELECT * FROM users WHERE status = 'approved' ORDER BY created_at DESC");
 ?>
 
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8" />
-    <title>Admin Dashboard</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Admin System Oversight</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        body {
-            background-color: #e6effc;
-            font-family: Arial, sans-serif;
-            margin-left: 280px;
-        }
-
-        .container {
-            padding: 2rem 1rem;
-        }
-
-        h2 {
-            color: #333;
-            font-size: clamp(1.4rem, 4vw, 1.8rem);
-            margin-bottom: 1.5rem;
-        }
-
-        h4 {
-            color: #333;
-            font-size: clamp(1.2rem, 3vw, 1.5rem);
-            margin-bottom: 1rem;
-        }
-
-        .card {
-            border-radius: 8px;
-            transition: transform 0.3s;
-        }
-
-        .card:hover {
-            transform: translateY(-5px);
-        }
-
-        .card-title {
-            font-size: clamp(1rem, 2.5vw, 1.2rem);
-        }
-
-        .card-text {
-            font-size: clamp(1.2rem, 3vw, 1.5rem);
-        }
-
-        .card-icon {
-            font-size: clamp(2rem, 5vw, 3rem);
-        }
-
-        .table {
-            background-color: #fff;
-            border-radius: 8px;
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-        }
-
-        .table th {
-            background-color: #f8f9fa;
-            font-size: clamp(0.9rem, 2.5vw, 1rem);
-        }
-
-        .table td {
-            font-size: clamp(0.85rem, 2.5vw, 0.95rem);
-        }
-
-        .table-hover tbody tr:hover {
-            background-color: #f1f6ff;
-        }
-
-        .btn-light {
-            font-size: clamp(0.85rem, 2.5vw, 0.95rem);
-        }
-
-        .navbar-toggler {
-            display: none;
-            position: fixed;
-            top: 1rem;
-            left: 1rem;
-            z-index: 1100;
-        }
-
-       
-        @media (max-width: 992px) {
-            body {
-                margin-left: 0;
-            }
-
-            .container {
-                padding: 1.5rem 1rem;
-            }
-
-            .navbar-toggler {
-                display: block;
-            }
-
-            .table {
-                font-size: 0.875rem;
-            }
-        }
-
-        @media (max-width: 768px) {
-            .row.mb-5 {
-                margin-bottom: 2rem !important;
-            }
-        }
-
-        @media (max-width: 576px) {
-            h2 {
-                font-size: 1.4rem;
-            }
-
-            h4 {
-                font-size: 1.2rem;
-            }
-
-            .card-title {
-                font-size: 1rem;
-            }
-
-            .card-text {
-                font-size: 1.2rem;
-            }
-
-            .card-icon {
-                font-size: 2rem;
-            }
-
-            .table th, .table td {
-                font-size: 0.8rem;
-            }
-        }
+        body { background-color: #f4f7fe; font-family: 'Segoe UI', sans-serif; margin-left: 280px; }
+        .stat-card { border: none; border-radius: 15px; transition: 0.3s; }
+        .stat-card:hover { transform: translateY(-5px); }
+        .chart-container { background: #fff; padding: 20px; border-radius: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); height: 100%; }
+        .table-card { background: #fff; border-radius: 15px; padding: 20px; margin-bottom: 30px; }
+        @media (max-width: 992px) { body { margin-left: 0; } }
     </style>
 </head>
 <body>
-    <button class="navbar-toggler" type="button" data-bs-toggle="offcanvas" data-bs-target="#sidebarOffcanvas" aria-controls="sidebarOffcanvas">
-        <span class="navbar-toggler-icon"></span>
-    </button>
 
-    <?php include('admin_sidebar.php'); ?>
+<?php include('admin_sidebar.php'); ?>
 
-    <div class="container mt-5">
-        <h2 class="text-center mb-4"><i class="fas fa-user-shield me-2"></i>Admin Dashboard</h2>
+<div class="container-fluid p-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="fas fa-chart-line me-2 text-primary"></i>System Oversight</h2>
+        <span class="badge bg-white text-dark shadow-sm p-2">Server Time: <?= date('Y-m-d H:i') ?></span>
+    </div>
 
-        <div class="row mb-5">
-            <div class="col-md-4 col-sm-6 mb-4">
-                <div class="card text-white bg-primary shadow">
-                    <div class="card-body d-flex justify-content-between align-items-center">
-                        <div>
-                            <h5 class="card-title"><i class="fas fa-users me-2"></i>Total Shop Owners</h5>
-                            <p class="card-text h4"><?= $userCount ?></p>
-                        </div>
-                        <i class="fas fa-users card-icon"></i>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-4 col-sm-6 mb-4">
-                <div class="card text-white bg-success shadow">
-                    <div class="card-body d-flex justify-content-between align-items-center">
-                        <div>
-                            <h5 class="card-title"><i class="fas fa-user-tie me-2"></i>Total Managers</h5>
-                            <p class="card-text h4"><?= $managerCount ?></p>
-                        </div>
-                        <i class="fas fa-user-tie card-icon"></i>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-4 col-sm-6 mb-4">
-                <div class="card text-white bg-info shadow">
-                    <div class="card-body d-flex justify-content-between align-items-center">
-                        <div>
-                            <h5 class="card-title"><i class="fas fa-box me-2"></i>Total Products</h5>
-                            <p class="card-text h4"><?= $productCount ?></p>
-                        </div>
-                        <i class="fas fa-box card-icon"></i>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-4 col-sm-6 mb-4">
-                <div class="card text-white bg-warning shadow">
-                    <div class="card-body d-flex justify-content-between align-items-center">
-                        <div>
-                            <h5 class="card-title"><i class="fas fa-code-branch me-2"></i>Total Branches</h5>
-                            <p class="card-text h4"><?= $branchCount ?></p>
-                        </div>
-                        <i class="fas fa-code-branch card-icon"></i>
-                    </div>
-                </div>
+    <div class="row g-3 mb-4">
+        <div class="col-md-3">
+            <div class="card stat-card bg-primary text-white p-3">
+                <small>Active Owners</small>
+                <h3 class="fw-bold"><?= $stats['owners'] ?></h3>
             </div>
         </div>
+        <div class="col-md-3">
+            <div class="card stat-card bg-warning text-dark p-3">
+                <small>Pending Approvals</small>
+                <h3 class="fw-bold"><?= $stats['pending'] ?></h3>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stat-card bg-info text-white p-3">
+                <small>System Branches</small>
+                <h3 class="fw-bold"><?= $stats['branches'] ?></h3>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stat-card bg-success text-white p-3">
+                <small>Total Sales Volume</small>
+                <h3 class="fw-bold"><?= $stats['sales'] ?></h3>
+            </div>
+        </div>
+    </div>
 
-        <h4 id="userTable"><i class="fas fa-table me-2"></i>Shop Owners Table</h4>
+    <div class="row g-4 mb-5">
+        <div class="col-lg-8">
+            <div class="chart-container">
+                <h6>Registration Trend & Owner Growth</h6>
+                <canvas id="regTrendChart"></canvas>
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <div class="chart-container">
+                <h6>User Status Distribution</h6>
+                <canvas id="statusPieChart"></canvas>
+            </div>
+        </div>
+        <div class="col-lg-12">
+            <div class="chart-container">
+                <h6>Branch Count per Owner</h6>
+                <canvas id="branchBarChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <div class="table-card shadow-sm">
+        <h5 class="mb-4 text-danger"><i class="fas fa-clock me-2"></i>User Approval Queue</h5>
         <div class="table-responsive">
-            <table class="table table-bordered table-hover mt-3">
-                <thead class="table-light">
+            <table class="table table-hover align-middle">
+                <thead>
                     <tr>
-                        <th><i class="fas fa-hashtag me-1"></i>ID</th>
-                        <th><i class="fas fa-user me-1"></i>Full Name</th>
-                        <th><i class="fas fa-envelope me-1"></i>Email</th>
-                        <th><i class="fas fa-calendar-alt me-1"></i>Registered On</th>
+                        <th>Shop Name</th>
+                        <th>Owner</th>
+                        <th>Phone</th>
+                        <th>Date</th>
+                        <th>Action</th>
                     </tr>
                 </thead>
                 <tbody>
-                    <?php if (mysqli_num_rows($userList) > 0): ?>
-                        <?php while ($user = mysqli_fetch_assoc($userList)): ?>
-                            <tr>
-                                <td><?= $user['id'] ?></td>
-                                <td><?= htmlspecialchars($user['name']) ?></td>
-                                <td><?= htmlspecialchars($user['email']) ?></td>
-                                <td><?= date('Y-m-d H:i', strtotime($user['created_at'])) ?></td>
-                            </tr>
-                        <?php endwhile; ?>
-                    <?php else: ?>
-                        <tr><td colspan="4" class="text-center">No users found.</td></tr>
-                    <?php endif; ?>
+                    <?php while($user = mysqli_fetch_assoc($approvalQueue)): ?>
+                    <tr>
+                        <td><strong><?= htmlspecialchars($user['shop_name']) ?></strong></td>
+                        <td><?= htmlspecialchars($user['name']) ?><br><small><?= $user['email'] ?></small></td>
+                        <td><?= $user['phone_number'] ?></td>
+                        <td><?= date('M d, Y', strtotime($user['created_at'])) ?></td>
+                        <td>
+                            <a href="update_status.php?id=<?= $user['id'] ?>&status=approved" class="btn btn-sm btn-success">Approve</a>
+                            <a href="update_status.php?id=<?= $user['id'] ?>&status=rejected" class="btn btn-sm btn-outline-danger">Reject</a>
+                        </td>
+                    </tr>
+                    <?php endwhile; ?>
                 </tbody>
             </table>
         </div>
     </div>
+</div>
 
+<script>
+// Chart 1: Line Chart
+const ctx1 = document.getElementById('regTrendChart').getContext('2d');
+new Chart(ctx1, {
+    type: 'line',
+    data: {
+        labels: <?= json_encode($chart1_labels) ?>,
+        datasets: [{
+            label: 'New Registrations',
+            data: <?= json_encode($chart1_data) ?>,
+            borderColor: '#0d6efd',
+            tension: 0.3,
+            fill: true,
+            backgroundColor: 'rgba(13, 110, 253, 0.1)'
+        }]
+    }
+});
 
+// Chart 2: Pie Chart
+const ctx2 = document.getElementById('statusPieChart').getContext('2d');
+new Chart(ctx2, {
+    type: 'doughnut',
+    data: {
+        labels: <?= json_encode($chart2_labels) ?>,
+        datasets: [{
+            data: <?= json_encode($chart2_data) ?>,
+            backgroundColor: ['#198754', '#ffc107', '#dc3545']
+        }]
+    }
+});
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+// Chart 3: Bar Chart
+const ctx3 = document.getElementById('branchBarChart').getContext('2d');
+new Chart(ctx3, {
+    type: 'bar',
+    data: {
+        labels: <?= json_encode($chart3_labels) ?>,
+        datasets: [{
+            label: 'Branches Managed',
+            data: <?= json_encode($chart3_data) ?>,
+            backgroundColor: '#0dcaf0'
+        }]
+    }
+});
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
-
-<?php mysqli_close($conn); ?>

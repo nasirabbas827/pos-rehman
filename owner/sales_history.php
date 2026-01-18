@@ -1,6 +1,5 @@
 <?php
 session_start();
-// --- AUTHENTICATION: Check for owner role ---
 if (!isset($_SESSION["id"]) || $_SESSION["role"] !== "owner") {
     header("Location: ../login.php");
     exit();
@@ -11,28 +10,37 @@ include('../config.php');
 $sales_data = [];
 $branches = [];
 $error_message = "";
-$filter_branch_id = (int)($_GET['branch_id'] ?? 0); // Get filter from URL parameter
 
-// 1. Fetch all branches for the filter dropdown
-$sql_branches = "SELECT id, name FROM branches ORDER BY name ASC";
-$result_branches = mysqli_query($conn, $sql_branches);
-if ($result_branches) {
-    while ($row = mysqli_fetch_assoc($result_branches)) {
+// 1. Inputs from GET
+$filter_branch_id = (int)($_GET['branch_id'] ?? 0);
+$start_date = $_GET['start_date'] ?? '';
+$end_date = $_GET['end_date'] ?? '';
+$owner_id = $_SESSION["id"];
+
+// 2. FETCH OWNER'S BRANCHES
+$owner_branch_ids = [];
+$owner_branches_query = "SELECT id, name FROM branches WHERE owner_id = ?";
+$stmt_owner_branches = mysqli_prepare($conn, $owner_branches_query);
+
+if ($stmt_owner_branches) {
+    mysqli_stmt_bind_param($stmt_owner_branches, "i", $owner_id);
+    mysqli_stmt_execute($stmt_owner_branches);
+    $result_owner_branches = mysqli_stmt_get_result($stmt_owner_branches);
+    while ($row = mysqli_fetch_assoc($result_owner_branches)) {
         $branches[] = $row;
+        $owner_branch_ids[] = $row['id'];
     }
+    mysqli_stmt_close($stmt_owner_branches);
 }
 
-// 2. Construct the main SQL query with optional filtering
+if (empty($owner_branch_ids)) {
+    $error_message = "No branches are currently assigned to your account.";
+}
+
+// 3. CONSTRUCT SQL QUERY
 $sql_sales = "
-    SELECT 
-        s.id, 
-        s.sale_date, 
-        s.total_amount, 
-        s.cash_received,
-        s.payment_method, 
-        c.name AS customer_name,
-        sp.name AS salesperson_name,
-        b.name AS branch_name
+    SELECT s.id, s.sale_date, s.total_amount, s.cash_received, s.payment_method, 
+           c.name AS customer_name, sp.name AS salesperson_name, b.name AS branch_name
     FROM sales s
     LEFT JOIN customers c ON s.customer_id = c.id
     LEFT JOIN salespersons sp ON s.salesperson_id = sp.id
@@ -43,204 +51,173 @@ $where_clauses = [];
 $param_types = "";
 $param_values = [];
 
-// Apply Branch Filter
-if ($filter_branch_id > 0) {
+// Filter: Logic for Branch (Owner Security)
+if ($filter_branch_id > 0 && in_array($filter_branch_id, $owner_branch_ids)) {
     $where_clauses[] = "s.branch_id = ?";
     $param_types .= "i";
     $param_values[] = $filter_branch_id;
+} else {
+    // Default: Only show branches owned by this user
+    $placeholders = implode(',', array_fill(0, count($owner_branch_ids), '?'));
+    $where_clauses[] = "s.branch_id IN ($placeholders)";
+    $param_types .= str_repeat('i', count($owner_branch_ids)); 
+    $param_values = array_merge($param_values, $owner_branch_ids);
+}
+
+// Filter: Date Range
+if (!empty($start_date)) {
+    $where_clauses[] = "DATE(s.sale_date) >= ?";
+    $param_types .= "s";
+    $param_values[] = $start_date;
+}
+if (!empty($end_date)) {
+    $where_clauses[] = "DATE(s.sale_date) <= ?";
+    $param_types .= "s";
+    $param_values[] = $end_date;
 }
 
 if (!empty($where_clauses)) {
     $sql_sales .= " WHERE " . implode(' AND ', $where_clauses);
 }
-
 $sql_sales .= " ORDER BY s.sale_date DESC";
 
-// 3. Execute the filtered query
-$stmt_sales = mysqli_prepare($conn, $sql_sales);
-
-if ($stmt_sales) {
-    if (!empty($param_values)) {
-        // Use the splat operator (...) for dynamic parameter binding
+// 4. EXECUTE
+if (!empty($owner_branch_ids)) {
+    $stmt_sales = mysqli_prepare($conn, $sql_sales);
+    if ($stmt_sales) {
         mysqli_stmt_bind_param($stmt_sales, $param_types, ...$param_values);
+        mysqli_stmt_execute($stmt_sales);
+        $result_sales = mysqli_stmt_get_result($stmt_sales);
+        while ($row = mysqli_fetch_assoc($result_sales)) {
+            $sales_data[] = $row;
+        }
+        mysqli_stmt_close($stmt_sales);
     }
-    
-    mysqli_stmt_execute($stmt_sales);
-    $result_sales = mysqli_stmt_get_result($stmt_sales);
-
-    while ($row = mysqli_fetch_assoc($result_sales)) {
-        $sales_data[] = $row;
-    }
-    mysqli_stmt_close($stmt_sales);
-} else {
-    $error_message = "Database error: Could not prepare the sales query.";
 }
-
-mysqli_close($conn); 
 ?>
 
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8" />
-    <title>Global Sales History - Owner</title>
+    <title>Sales History | Owner</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css" rel="stylesheet" />
-    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <style>
-        body {
-            background-color: #f0f4f8;
-            font-family: Arial, sans-serif;
-            margin-left: 280px; 
-        }
-        .container {
-            padding: 2rem 1rem;
-        }
-        h2 {
-            color: #4a5568;
-            font-size: clamp(1.6rem, 4vw, 2rem);
-            margin-bottom: 1.5rem;
-        }
-        .table {
-            background-color: #fff;
-            border-radius: 8px;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-            overflow: hidden; 
-        }
-        .table th {
-            background-color: #e2e8f0;
-            font-size: 0.95rem;
-        }
-        .table-hover tbody tr:hover {
-            background-color: #f5f5f5;
-        }
-        .badge-credit {
-            background-color: #fcd34d; 
-            color: #333;
-        }
-        .badge-cash {
-            background-color: #10b981; 
-            color: #fff;
-        }
-        .action-icon {
-            cursor: pointer;
-            margin-right: 5px;
-            transition: color 0.2s;
-        }
-        .action-icon:hover {
-            color: #0d6efd !important;
-        }
-        @media (max-width: 992px) {
-            body {
-                margin-left: 0;
-            }
-        }
-        .modal-header {
-            background-color: #4a5568; /* Owner header color */
-            color: white;
-            border-radius: 6px 6px 0 0;
-        }
+        body { background-color: #f0f4f8; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin-left: 280px; transition: 0.3s; }
+        .container { padding: 2rem 1rem; }
+        .card { border: none; box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075); border-radius: 10px; }
+        .badge-credit { background-color: #fac000; color: #ffc002; border: 1px solid #ffeeba; }
+        .badge-cash { background-color: #00ff8c; color: #00fc87; border: 1px solid #badbcc; }
+        @media (max-width: 992px) { body { margin-left: 0; } }
     </style>
 </head>
 <body>
-    
-    <?php include('sidebar.php');  ?>
+    <?php include('sidebar.php'); ?>
 
     <div class="container py-4">
-        <h2 class="mb-4"><i class="fas fa-history me-2"></i>Global Sales History (All Branches)</h2>
-        
-        <?php if ($error_message): ?>
-            <div class="alert alert-danger"><i class="fas fa-exclamation-triangle me-2"></i><?php echo $error_message; ?></div>
-        <?php endif; ?>
+        <h2 class="mb-4"><i class="fas fa-history me-2 text-primary"></i>Sales History</h2>
 
         <div class="card mb-4">
             <div class="card-body">
-                <form method="GET" action="sales_history.php" class="row g-3 align-items-end">
-                    <div class="col-md-5">
-                        <label for="branch_id" class="form-label fw-bold">Filter by Branch:</label>
-                        <select name="branch_id" id="branch_id" class="form-select">
+                <form method="GET" class="row g-3">
+                    <div class="col-md-3">
+                        <label class="form-label fw-bold small">Branch</label>
+                        <select name="branch_id" class="form-select">
                             <option value="0">All Branches</option>
                             <?php foreach ($branches as $branch): ?>
-                                <option 
-                                    value="<?php echo $branch['id']; ?>" 
-                                    <?php echo $filter_branch_id == $branch['id'] ? 'selected' : ''; ?>>
-                                    <?php echo htmlspecialchars($branch['name']); ?>
+                                <option value="<?= $branch['id'] ?>" <?= $filter_branch_id == $branch['id'] ? 'selected' : '' ?>>
+                                    <?= htmlspecialchars($branch['name']) ?>
                                 </option>
                             <?php endforeach; ?>
                         </select>
                     </div>
                     <div class="col-md-3">
-                        <button type="submit" class="btn btn-primary w-100"><i class="fas fa-filter me-1"></i> Apply Filter</button>
+                        <label class="form-label fw-bold small">Start Date</label>
+                        <input type="date" name="start_date" class="form-control" value="<?= htmlspecialchars($start_date) ?>">
                     </div>
-                    <div class="col-md-4">
-                        <?php 
-                            // Pass the current filter to the CSV export script
-                            $csv_export_url = "export_sales_csv.php" . ($filter_branch_id > 0 ? "?branch_id=" . $filter_branch_id : "");
-                        ?>
-                        <a href="<?php echo $csv_export_url; ?>" class="btn btn-success w-100" target="_blank">
-                            <i class="fas fa-file-csv me-1"></i> Export to CSV
+                    <div class="col-md-3">
+                        <label class="form-label fw-bold small">End Date</label>
+                        <input type="date" name="end_date" class="form-control" value="<?= htmlspecialchars($end_date) ?>">
+                    </div>
+                    <div class="col-md-3 d-flex align-items-end gap-2">
+                        <button type="submit" class="btn btn-primary flex-grow-1">
+                            <i class="fas fa-search me-1"></i> Search
+                        </button>
+                        <a href="sales_history.php" class="btn btn-outline-secondary" title="Reset">
+                            <i class="fas fa-undo"></i>
                         </a>
                     </div>
                 </form>
             </div>
         </div>
+
+        <div class="d-flex justify-content-end mb-3">
+            <?php 
+                $export_params = http_build_query([
+                    'branch_id' => $filter_branch_id,
+                    'start_date' => $start_date,
+                    'end_date' => $end_date
+                ]);
+            ?>
+            <a href="export_sales_csv.php?<?= $export_params ?>" class="btn btn-success btn-sm shadow-sm" target="_blank">
+                <i class="fas fa-file-excel me-1"></i> Export Results (CSV)
+            </a>
+        </div>
+
         <?php if (empty($sales_data)): ?>
-            <div class="alert alert-info text-center">
-                <i class="fas fa-info-circle me-1"></i> No sales transactions found <?php echo $filter_branch_id > 0 ? " for the selected branch." : "in the system."; ?>
+            <div class="alert alert-info border-0 shadow-sm text-center py-5">
+                <i class="fas fa-search fa-3x mb-3 opacity-25"></i>
+                <p class="mb-0">No sales transactions found for the selected criteria.</p>
             </div>
         <?php else: ?>
             <div class="table-responsive">
-                <table class="table table-bordered table-hover align-middle">
-                    <thead class="table-light">
+                <table class="table table-hover bg-white shadow-sm align-middle">
+                    <thead class="table-dark">
                         <tr>
-                            <th><i class="fas fa-receipt me-1"></i> ID</th>
-                            <th><i class="fas fa-building me-1"></i> Branch</th>
-                            <th><i class="fas fa-user me-1"></i> Salesperson</th>
-                            <th><i class="fas fa-user-tag me-1"></i> Customer</th>
-                            <th><i class="fas fa-calendar-alt me-1"></i> Date/Time</th>
-                            <th><i class="fas fa-rupee-sign me-1"></i> Total Amt</th>
-                            <th><i class="fas fa-credit-card me-1"></i> Method</th>
-                            <th><i class="fas fa-cogs me-1"></i> Actions</th>
+                            <th>ID</th>
+                            <th>Branch</th>
+                            <th>Salesperson</th>
+                            <th>Customer</th>
+                            <th>Date/Time</th>
+                            <th>Amount</th>
+                            <th>Method</th>
+                            <th class="text-center">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php foreach ($sales_data as $sale): 
-                            $khata_change = $sale['total_amount'] - $sale['cash_received'];
+                            $balance = $sale['total_amount'] - $sale['cash_received'];
                         ?>
-                            <tr>
-                                <td><?php echo $sale['id']; ?></td>
-                                <td class="sale-branch-name"><?php echo htmlspecialchars($sale['branch_name'] ?: 'N/A'); ?></td>
-                                <td class="sale-salesperson-name"><?php echo htmlspecialchars($sale['salesperson_name'] ?: 'N/A'); ?></td>
-                                <td><?php echo htmlspecialchars($sale['customer_name'] ?: 'Guest Customer'); ?></td>
-                                <td><?php echo date('Y-m-d H:i', strtotime($sale['sale_date'])); ?></td>
-                                <td class="fw-bold"><?php echo number_format($sale['total_amount'], 2); ?></td>
-                                <td>
-                                    <span class="badge <?php echo ($sale['payment_method'] == 'Credit') ? 'badge-credit' : 'badge-cash'; ?>">
-                                        <?php echo htmlspecialchars($sale['payment_method']); ?>
-                                    </span>
-                                    <?php if ($sale['payment_method'] == 'Credit' && $khata_change != 0): ?>
-                                        <br><small class="text-<?php echo $khata_change > 0 ? 'danger' : 'success'; ?> fw-bold">
-                                            <?php if ($khata_change > 0): ?>
-                                                Udhaar: <?php echo number_format($khata_change, 2); ?>
-                                            <?php else: ?>
-                                                Advance: <?php echo number_format(abs($khata_change), 2); ?>
-                                            <?php endif; ?>
-                                        </small>
-                                    <?php endif; ?>
-                                </td>
-                                <td>
-                                    <i class="fas fa-eye text-success action-icon me-2 view-sale-details" 
-                                       data-sale-id="<?php echo $sale['id']; ?>"
-                                       data-bs-toggle="modal" 
-                                       data-bs-target="#saleDetailsModal"
-                                       title="View Details"></i>
-                                       
-                                    <a href="print_invoice.php?sale_id=<?php echo $sale['id']; ?>" target="_blank" title="Print/View Invoice">
-                                        <i class="fas fa-print text-primary action-icon"></i>
-                                    </a>
-                                </td>
-                            </tr>
+                        <tr>
+                            <td>#<?= $sale['id'] ?></td>
+                            <td class="fw-bold"><?= htmlspecialchars($sale['branch_name']) ?></td>
+                            <td class="small"><?= htmlspecialchars($sale['salesperson_name']) ?></td>
+                            <td><?= htmlspecialchars($sale['customer_name'] ?: 'Guest') ?></td>
+                            <td class="small text-muted"><?= date('d M Y, h:i A', strtotime($sale['sale_date'])) ?></td>
+                            <td class="fw-bold text-primary">Rs <?= number_format($sale['total_amount'], 2) ?></td>
+                            <td>
+                                <span class="badge <?= ($sale['payment_method'] == 'Credit') ? 'badge-credit' : 'badge-cash' ?>">
+                                    <?= $sale['payment_method'] ?>
+                                </span>
+                                <?php if ($sale['payment_method'] == 'Credit' && $balance > 0): ?>
+                                    <div class="text-danger extra-small fw-bold" style="font-size: 10px;">
+                                        Pending: Rs <?= number_format($balance, 2) ?>
+                                    </div>
+                                <?php endif; ?>
+                            </td>
+                            <td class="text-center">
+                                <button class="btn btn-sm btn-outline-success view-sale-details" 
+                                        data-sale-id="<?= $sale['id'] ?>" data-bs-toggle="modal" 
+                                        data-bs-target="#saleDetailsModal">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                                <a href="print_invoice.php?sale_id=<?= $sale['id'] ?>" class="btn btn-sm btn-outline-primary" target="_blank">
+                                    <i class="fas fa-print"></i>
+                                </a>
+                            </td>
+                        </tr>
                         <?php endforeach; ?>
                     </tbody>
                 </table>
@@ -248,173 +225,5 @@ mysqli_close($conn);
         <?php endif; ?>
     </div>
 
-    <div class="modal fade" id="saleDetailsModal" tabindex="-1" aria-labelledby="saleDetailsModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-lg modal-dialog-scrollable">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="saleDetailsModalLabel">Sale Details - ID: <span id="modal-sale-id">...</span></h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="row mb-3">
-                        <div class="col-md-6"><strong>Branch:</strong> <span id="modal-branch-name">...</span></div>
-                        <div class="col-md-6"><strong>Salesperson:</strong> <span id="modal-salesperson-name">...</span></div>
-                    </div>
-                    <div class="row mb-3">
-                        <div class="col-md-6"><strong>Customer:</strong> <span id="modal-customer-name">...</span></div>
-                        <div class="col-md-6"><strong>Sale Date:</strong> <span id="modal-sale-date">...</span></div>
-                    </div>
-                    <div class="row mb-4">
-                        <div class="col-md-6"><strong>Payment Method:</strong> <span id="modal-payment-method">...</span></div>
-                        <div class="col-md-6"><strong>Total Amount:</strong> <span id="modal-total-amount" class="text-primary fw-bold">...</span></div>
-                    </div>
-
-                    <h6 class="border-bottom pb-2 mb-3"><i class="fas fa-list-alt me-1"></i> Products Sold</h6>
-                    <div class="table-responsive">
-                        <table class="table table-sm table-bordered">
-                            <thead class="table-light">
-                                <tr>
-                                    <th>Product Name</th>
-                                    <th class="text-end">Qty</th>
-                                    <th class="text-end">Unit Price</th>
-                                    <th class="text-end">Discount</th>
-                                    <th class="text-end">Total</th>
-                                </tr>
-                            </thead>
-                            <tbody id="sale-items-body">
-                                </tbody>
-                            <tfoot id="sale-summary-footer">
-                                </tfoot>
-                        </table>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                    <a href="#" id="modal-print-link" target="_blank" class="btn btn-primary"><i class="fas fa-print me-1"></i> Print Invoice</a>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
-        $(document).ready(function() {
-            // Event listener for the "View Details" icon
-            $('.view-sale-details').on('click', function() {
-                const saleId = $(this).data('sale-id');
-                
-                // Update modal general info immediately from table row data
-                const $row = $(this).closest('tr');
-                const branchName = $row.find('td:eq(1)').text().trim(); // Branch is column 1
-                const salespersonName = $row.find('td:eq(2)').text().trim(); // Salesperson is column 2
-                const customerName = $row.find('td:eq(3)').text().trim(); // Customer is column 3
-                const saleDate = $row.find('td:eq(4)').text().trim(); // Date is column 4
-                const totalAmount = $row.find('td:eq(5)').text().trim(); // Total Amt is column 5
-                const paymentMethod = $row.find('td:eq(6)').find('.badge').text().trim(); // Method is column 6
-
-                $('#modal-sale-id').text(saleId);
-                $('#modal-branch-name').text(branchName);
-                $('#modal-salesperson-name').text(salespersonName);
-                $('#modal-customer-name').text(customerName);
-                $('#modal-sale-date').text(saleDate);
-                $('#modal-total-amount').text('₹' + totalAmount);
-                $('#modal-payment-method').text(paymentMethod);
-                $('#modal-print-link').attr('href', 'print_invoice.php?sale_id=' + saleId);
-
-                // Clear previous item data and show a loading message
-                $('#sale-items-body').html('<tr><td colspan="5" class="text-center"><i class="fas fa-spinner fa-spin me-2"></i>Loading details...</td></tr>');
-                $('#sale-summary-footer').empty();
-
-                // AJAX call to fetch detailed sales items
-                // NOTE: We assume the 'fetch_sale_details.php' file has been updated to support the 'owner' role.
-                $.ajax({
-                    url: 'fetch_sale_details.php', 
-                    method: 'GET',
-                    data: { sale_id: saleId },
-                    dataType: 'json',
-                    success: function(response) {
-                        if (response.success) {
-                            let itemsHtml = '';
-                            let grandTotal = 0;
-                            let totalDiscount = 0;
-
-                            // 1. Build the items table rows
-                            response.items.forEach(item => {
-                                const lineTotal = parseFloat(item.line_total);
-                                grandTotal += lineTotal;
-                                totalDiscount += parseFloat(item.discount);
-                                
-                                itemsHtml += `
-                                    <tr>
-                                        <td>${item.product_name}</td>
-                                        <td class="text-end">${item.quantity} ${item.unit}</td>
-                                        <td class="text-end">${parseFloat(item.unit_price).toFixed(2)}</td>
-                                        <td class="text-end text-danger">${parseFloat(item.discount).toFixed(2)}</td>
-                                        <td class="text-end fw-bold">${lineTotal.toFixed(2)}</td>
-                                    </tr>
-                                `;
-                            });
-                            
-                            $('#sale-items-body').html(itemsHtml);
-
-                            // 2. Build the summary footer
-                            let footerHtml = `
-                                <tr>
-                                    <th colspan="3" class="text-end">Total Discount:</th>
-                                    <th class="text-end text-danger">${totalDiscount.toFixed(2)}</th>
-                                    <td></td>
-                                </tr>
-                                <tr>
-                                    <th colspan="4" class="text-end">GRAND TOTAL:</th>
-                                    <th class="text-end text-primary">${grandTotal.toFixed(2)}</th>
-                                </tr>
-                            `;
-
-                            // 3. Add cash received and credit/change info
-                            const saleInfo = response.sale_info;
-                            const totalAmt = parseFloat(saleInfo.total_amount);
-                            const cashRcvd = parseFloat(saleInfo.cash_received);
-
-                            if(cashRcvd > 0) {
-                                footerHtml += `
-                                    <tr>
-                                        <th colspan="4" class="text-end">Cash Received:</th>
-                                        <th class="text-end text-success">${cashRcvd.toFixed(2)}</th>
-                                    </tr>
-                                `;
-                            }
-                            
-                            if(saleInfo.payment_method === 'Credit' && totalAmt > cashRcvd) {
-                                const udhaar = totalAmt - cashRcvd;
-                                footerHtml += `
-                                    <tr>
-                                        <th colspan="4" class="text-end text-danger">Udhaar/Credit Remaining:</th>
-                                        <th class="text-end text-danger fw-bold">${udhaar.toFixed(2)}</th>
-                                    </tr>
-                                `;
-                            } else if (cashRcvd > totalAmt) {
-                                const change = cashRcvd - totalAmt;
-                                footerHtml += `
-                                    <tr>
-                                        <th colspan="4" class="text-end text-info">Change/Return:</th>
-                                        <th class="text-end text-info fw-bold">${change.toFixed(2)}</th>
-                                    </tr>
-                                `;
-                            }
-                            
-                            $('#sale-summary-footer').html(footerHtml);
-
-                        } else {
-                            $('#sale-items-body').html(`<tr><td colspan="5" class="text-center text-danger">${response.message}</td></tr>`);
-                        }
-                    },
-                    error: function(xhr, status, error) {
-                        console.error("AJAX Error: ", status, error);
-                        $('#sale-items-body').html('<tr><td colspan="5" class="text-center text-danger">An unexpected error occurred while fetching data.</td></tr>');
-                    }
-                });
-            });
-        });
-    </script>
-</body>
+    </body>
 </html>

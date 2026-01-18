@@ -1,0 +1,231 @@
+<?php
+session_start();
+if (!isset($_SESSION["id"]) || $_SESSION["role"] !== "owner") {
+    header("Location: ../login.php");
+    exit();
+}
+
+include('../config.php');
+$owner_id = $_SESSION["id"];
+
+// --- FETCH DATA FOR ALL BRANCHES OWNED BY THIS OWNER ---
+
+// 1. Recent Sales (Across all branches)
+$res_sales = $conn->query("
+    SELECT s.*, c.name as customer_name, b.name as branch_name 
+    FROM sales s 
+    LEFT JOIN customers c ON s.customer_id = c.id 
+    JOIN branches b ON s.branch_id = b.id
+    WHERE b.owner_id = $owner_id 
+    ORDER BY s.sale_date DESC LIMIT 5
+");
+
+// 2. Low Stock Alerts (Across all branches)
+$res_stock = $conn->query("
+    SELECT p.*, b.name as branch_name 
+    FROM products p 
+    JOIN branches b ON p.branch_id = b.id 
+    WHERE b.owner_id = $owner_id AND p.quantity <= p.low_stock_threshold 
+    ORDER BY p.quantity ASC LIMIT 5
+");
+
+// 3. New Staff/Salespersons (Across all branches)
+$res_staff = $conn->query("
+    SELECT sp.*, b.name as branch_name 
+    FROM salespersons sp 
+    JOIN branches b ON sp.branch_id = b.id 
+    WHERE b.owner_id = $owner_id 
+    ORDER BY sp.created_at DESC LIMIT 5
+");
+
+// 4. Khata Records (Recent Credit/Debit across all branches)
+$res_khata = $conn->query("
+    SELECT k.*, c.name as customer_name, b.name as branch_name 
+    FROM khata k 
+    JOIN customers c ON k.customer_id = c.id 
+    JOIN branches b ON c.branch_id = b.id
+    WHERE b.owner_id = $owner_id 
+    ORDER BY k.created_at DESC LIMIT 5
+");
+
+// 5. Recent Customers (Across all branches)
+$res_cust = $conn->query("
+    SELECT c.*, b.name as branch_name 
+    FROM customers c 
+    JOIN branches b ON c.branch_id = b.id 
+    WHERE b.owner_id = $owner_id 
+    ORDER BY c.created_at DESC LIMIT 5
+");
+
+// 6. New Categories (Added by this Owner)
+$res_cats = $conn->query("
+    SELECT * FROM categories 
+    WHERE owner_id = $owner_id 
+    ORDER BY created_at DESC LIMIT 5
+");
+?>
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Owner Notifications Center</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #f8fafc; font-family: 'Inter', sans-serif; margin-left: 280px; }
+        .notif-card { border: none; border-radius: 12px; background: #fff; height: 100%; transition: 0.3s; border: 1px solid #e2e8f0; }
+        .notif-card:hover { transform: translateY(-3px); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); }
+        .notif-item { display: flex; align-items: flex-start; padding: 15px; border-bottom: 1px solid #f1f5f9; }
+        .notif-item:last-child { border-bottom: none; }
+        .icon-box { width: 38px; height: 38px; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-right: 12px; flex-shrink: 0; }
+        .branch-badge { font-size: 0.65rem; padding: 2px 6px; border-radius: 4px; background: #e2e8f0; color: #475569; text-transform: uppercase; font-weight: 700; margin-bottom: 4px; display: inline-block; }
+        .time-label { font-size: 0.7rem; color: #94a3b8; font-weight: 500; }
+        .notif-title { font-size: 0.9rem; font-weight: 600; color: #1e293b; margin-bottom: 2px; }
+        .notif-sub { font-size: 0.8rem; color: #64748b; }
+        @media (max-width: 992px) { body { margin-left: 0; } }
+    </style>
+</head>
+<body>
+
+<?php include('sidebar.php'); ?>
+
+<div class="container py-4">
+    <div class="row mb-4">
+        <div class="col-12">
+            <h3 class="fw-bold text-dark"><i class="fas fa-bell me-2 text-primary"></i>Business-Wide Activity</h3>
+            <p class="text-muted">Monitoring all branches under your management</p>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-md-4">
+            <div class="card notif-card">
+                <div class="card-header bg-white py-3 border-0">
+                    <h6 class="mb-0 fw-bold"><i class="fas fa-shopping-cart text-primary me-2"></i>Global Sales</h6>
+                </div>
+                <div class="card-body p-0">
+                    <?php while($s = $res_sales->fetch_assoc()): ?>
+                    <div class="notif-item">
+                        <div class="icon-box bg-primary bg-opacity-10 text-primary"><i class="fas fa-check small"></i></div>
+                        <div>
+                            <span class="branch-badge"><?= $s['branch_name'] ?></span>
+                            <div class="notif-title">Rs <?= number_format($s['total_amount'],2) ?></div>
+                            <div class="notif-sub"><?= $s['customer_name'] ?? 'Walk-in' ?> • <?= $s['payment_method'] ?></div>
+                            <div class="time-label"><?= date('h:i A', strtotime($s['sale_date'])) ?></div>
+                        </div>
+                    </div>
+                    <?php endwhile; ?>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card notif-card">
+                <div class="card-header bg-white py-3 border-0">
+                    <h6 class="mb-0 fw-bold"><i class="fas fa-exclamation-triangle text-danger me-2"></i>Stock Alerts</h6>
+                </div>
+                <div class="card-body p-0">
+                    <?php while($st = $res_stock->fetch_assoc()): ?>
+                    <div class="notif-item">
+                        <div class="icon-box bg-danger bg-opacity-10 text-danger"><i class="fas fa-box small"></i></div>
+                        <div>
+                            <span class="branch-badge"><?= $st['branch_name'] ?></span>
+                            <div class="notif-title"><?= htmlspecialchars($st['name']) ?></div>
+                            <div class="notif-sub text-danger fw-bold">Only <?= $st['quantity'] ?> left</div>
+                            <div class="time-label">Check Inventory</div>
+                        </div>
+                    </div>
+                    <?php endwhile; ?>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card notif-card">
+                <div class="card-header bg-white py-3 border-0">
+                    <h6 class="mb-0 fw-bold"><i class="fas fa-file-invoice-dollar text-warning me-2"></i>Recent Khata</h6>
+                </div>
+                <div class="card-body p-0">
+                    <?php while($k = $res_khata->fetch_assoc()): ?>
+                    <div class="notif-item">
+                        <div class="icon-box bg-warning bg-opacity-10 text-warning"><i class="fas fa-pen-nib small"></i></div>
+                        <div>
+                            <span class="branch-badge"><?= $k['branch_name'] ?></span>
+                            <div class="notif-title"><?= $k['type'] ?>: Rs <?= number_format($k['amount'], 2) ?></div>
+                            <div class="notif-sub"><?= htmlspecialchars($k['customer_name']) ?></div>
+                            <div class="time-label"><?= date('M d, h:i A', strtotime($k['created_at'])) ?></div>
+                        </div>
+                    </div>
+                    <?php endwhile; ?>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card notif-card">
+                <div class="card-header bg-white py-3 border-0">
+                    <h6 class="mb-0 fw-bold"><i class="fas fa-user-plus text-info me-2"></i>New Customers</h6>
+                </div>
+                <div class="card-body p-0">
+                    <?php while($c = $res_cust->fetch_assoc()): ?>
+                    <div class="notif-item">
+                        <div class="icon-box bg-info bg-opacity-10 text-info"><i class="fas fa-user small"></i></div>
+                        <div>
+                            <span class="branch-badge"><?= $c['branch_name'] ?></span>
+                            <div class="notif-title"><?= htmlspecialchars($c['name']) ?></div>
+                            <div class="notif-sub"><?= $c['phone_number'] ?></div>
+                            <div class="time-label">Added <?= date('M d', strtotime($c['created_at'])) ?></div>
+                        </div>
+                    </div>
+                    <?php endwhile; ?>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card notif-card">
+                <div class="card-header bg-white py-3 border-0">
+                    <h6 class="mb-0 fw-bold"><i class="fas fa-users text-success me-2"></i>Branch Staff</h6>
+                </div>
+                <div class="card-body p-0">
+                    <?php while($sp = $res_staff->fetch_assoc()): ?>
+                    <div class="notif-item">
+                        <div class="icon-box bg-success bg-opacity-10 text-success"><i class="fas fa-user-tie small"></i></div>
+                        <div>
+                            <span class="branch-badge"><?= $sp['branch_name'] ?></span>
+                            <div class="notif-title"><?= htmlspecialchars($sp['name']) ?></div>
+                            <div class="notif-sub"><?= $sp['email'] ?></div>
+                            <div class="time-label">Joined <?= date('M d', strtotime($sp['created_at'])) ?></div>
+                        </div>
+                    </div>
+                    <?php endwhile; ?>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card notif-card">
+                <div class="card-header bg-white py-3 border-0">
+                    <h6 class="mb-0 fw-bold"><i class="fas fa-th-large text-secondary me-2"></i>My Categories</h6>
+                </div>
+                <div class="card-body p-0">
+                    <?php while($cat = $res_cats->fetch_assoc()): ?>
+                    <div class="notif-item">
+                        <div class="icon-box bg-secondary bg-opacity-10 text-secondary"><i class="fas fa-folder small"></i></div>
+                        <div>
+                            <div class="notif-title"><?= htmlspecialchars($cat['name']) ?></div>
+                            <div class="notif-sub">Global Category Created</div>
+                            <div class="time-label"><?= date('M d, Y', strtotime($cat['created_at'])) ?></div>
+                        </div>
+                    </div>
+                    <?php endwhile; ?>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
