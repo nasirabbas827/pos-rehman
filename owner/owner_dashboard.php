@@ -8,9 +8,7 @@ if (!isset($_SESSION["id"]) || $_SESSION["role"] !== "owner") {
 include('../config.php');
 $owner_id = $_SESSION["id"];
 
-// ────────────────────────────────────────────────
 // 1. Fetch Owner Profile
-// ────────────────────────────────────────────────
 $stmt = $conn->prepare("SELECT name, shop_name FROM users WHERE id = ?");
 $stmt->bind_param("i", $owner_id);
 $stmt->execute();
@@ -18,30 +16,20 @@ $stmt->bind_result($owner_name, $shop_name);
 $stmt->fetch();
 $stmt->close();
 
-// ────────────────────────────────────────────────
 // 2. KPI / Summary Data
-// ────────────────────────────────────────────────
 $today = date('Y-m-d');
 $this_month_start = date('Y-m-01');
 
 $stmt = $conn->prepare("
     SELECT 
-        COALESCE(SUM(CASE WHEN DATE(sale_date) = ? THEN total_amount END), 0) AS today_sales,
-        COALESCE(SUM(CASE WHEN sale_date >= ? THEN total_amount END), 0) AS month_sales,
-        COALESCE(SUM(CASE WHEN sale_date >= ? THEN cash_received END), 0) AS month_cash
-    FROM sales s
-    JOIN branches b ON s.branch_id = b.id
-    WHERE b.owner_id = ?
+        (SELECT COALESCE(SUM(s.total_amount), 0) FROM sales s JOIN branches b ON s.branch_id = b.id WHERE b.owner_id = ? AND DATE(s.sale_date) = ?) AS today_sales,
+        (SELECT COALESCE(SUM(s.total_amount), 0) FROM sales s JOIN branches b ON s.branch_id = b.id WHERE b.owner_id = ? AND s.sale_date >= ?) AS month_sales,
+        (SELECT COALESCE(SUM(p.grand_total), 0) FROM purchases p JOIN branches b ON p.branch_id = b.id WHERE b.owner_id = ? AND p.purchase_date >= ?) AS month_purchases
 ");
-$stmt->bind_param("sssi", $today, $this_month_start, $this_month_start, $owner_id);
+$stmt->bind_param("isisis", $owner_id, $today, $owner_id, $this_month_start, $owner_id, $this_month_start);
 $stmt->execute();
-$sales_row = $stmt->get_result()->fetch_assoc();
+$kpi = $stmt->get_result()->fetch_assoc();
 $stmt->close();
-
-// Map array values to variables to avoid Undefined Variable errors
-$today_sales = $sales_row['today_sales'] ?? 0;
-$month_sales = $sales_row['month_sales'] ?? 0;
-$month_cash  = $sales_row['month_cash'] ?? 0;
 
 // Total Outstanding Credit
 $stmt = $conn->prepare("
@@ -72,15 +60,33 @@ $product_stats = $stmt->get_result()->fetch_assoc();
 $stmt->close();
 
 // ────────────────────────────────────────────────
-// 3. Chart Data
+// 3. Chart Data (UPDATED: Added Purchases)
 // ────────────────────────────────────────────────
-$sales_trend_labels = []; $sales_trend_data = [];
+$trend_labels = []; 
+$sales_trend_data = [];
+$purchase_trend_data = [];
+
 for ($i = 29; $i >= 0; $i--) {
     $date = date('Y-m-d', strtotime("-$i days"));
-    $sales_trend_labels[] = date('M j', strtotime($date));
-    $stmt = $conn->prepare("SELECT COALESCE(SUM(s.total_amount), 0) FROM sales s JOIN branches b ON s.branch_id = b.id WHERE b.owner_id = ? AND DATE(s.sale_date) = ?");
-    $stmt->bind_param("is", $owner_id, $date); $stmt->execute(); $stmt->bind_result($daily); $stmt->fetch();
-    $sales_trend_data[] = $daily; $stmt->close();
+    $trend_labels[] = date('M j', strtotime($date));
+    
+    // Fetch Daily Sales
+    $stmt_s = $conn->prepare("SELECT COALESCE(SUM(s.total_amount), 0) FROM sales s JOIN branches b ON s.branch_id = b.id WHERE b.owner_id = ? AND DATE(s.sale_date) = ?");
+    $stmt_s->bind_param("is", $owner_id, $date); 
+    $stmt_s->execute(); 
+    $stmt_s->bind_result($daily_sale); 
+    $stmt_s->fetch();
+    $sales_trend_data[] = $daily_sale; 
+    $stmt_s->close();
+
+    // Fetch Daily Purchases
+    $stmt_p = $conn->prepare("SELECT COALESCE(SUM(p.grand_total), 0) FROM purchases p JOIN branches b ON p.branch_id = b.id WHERE b.owner_id = ? AND DATE(p.purchase_date) = ?");
+    $stmt_p->bind_param("is", $owner_id, $date); 
+    $stmt_p->execute(); 
+    $stmt_p->bind_result($daily_purchase); 
+    $stmt_p->fetch();
+    $purchase_trend_data[] = $daily_purchase; 
+    $stmt_p->close();
 }
 
 $stmt = $conn->prepare("SELECT payment_method, COALESCE(SUM(total_amount), 0) AS total FROM sales s JOIN branches b ON s.branch_id = b.id WHERE b.owner_id = ? GROUP BY payment_method");
@@ -89,9 +95,7 @@ $payment_labels = ['Cash' => 0, 'Credit' => 0];
 while ($row = $payment_result->fetch_assoc()) { $payment_labels[$row['payment_method']] = $row['total']; }
 $stmt->close();
 
-// ────────────────────────────────────────────────
 // 4. Tables Data
-// ────────────────────────────────────────────────
 $stmt = $conn->prepare("SELECT s.id, s.total_amount, s.payment_method, s.sale_date, b.name AS branch FROM sales s JOIN branches b ON s.branch_id = b.id WHERE b.owner_id = ? ORDER BY s.sale_date DESC LIMIT 6");
 $stmt->bind_param("i", $owner_id); $stmt->execute(); $recent_sales = $stmt->get_result()->fetch_all(MYSQLI_ASSOC); $stmt->close();
 
@@ -116,18 +120,18 @@ $stmt->bind_param("i", $owner_id); $stmt->execute(); $branch_health = $stmt->get
             --success-color: #10b981;
             --danger-color: #ef4444;
             --warning-color: #f59e0b;
+            --purchase-color: #fe0000;
         }
         body { background: #f8fafc; margin-left: var(--sidebar-width); font-family: 'Inter', sans-serif; color: #1e293b; transition: margin 0.3s; }
         .dashboard-container { padding: 2rem; }
-        .stat-card { border: none; border-radius: 12px; background: white; box-shadow: 0 1px 3px rgba(0,0,0,0.1); transition: transform 0.2s; }
+        .stat-card { border: none; border-radius: 12px; background: white; box-shadow: 0 1px 3px rgba(0,0,0,0.1); transition: transform 0.2s; height: 100%; }
         .stat-card:hover { transform: translateY(-5px); }
         .icon-box { width: 48px; height: 48px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.25rem; }
         .chart-container { background: white; border-radius: 12px; padding: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); height: 100%; }
         .table-card { background: white; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow: hidden; }
         .badge { border: none; font-weight: 600; padding: 0.4em 0.8em; }
-        .bg-success { background: #dcfce7; color: #166534; }
-        .bg-warning { background: #fef9c3; color: #854d0e; }
-        .bg-danger { background: #fee2e2; color: #991b1b; }
+        .border-purchase { border-left: 4px solid var(--purchase-color) !important; }
+        .bg-purchase { background: var(--purchase-color) !important; }
         @media (max-width: 992px) { body { margin-left: 0; } }
     </style>
 </head>
@@ -146,30 +150,41 @@ $stmt->bind_param("i", $owner_id); $stmt->execute(); $branch_health = $stmt->get
         </div>
     </div>
 
-    <div class="row g-4 mb-5">
-        <div class="col-md-3">
+    <div class="row g-3 mb-5">
+        <div class="col-xl col-md-4 col-sm-6">
             <div class="card stat-card p-3 border-start border-4 border-primary">
                 <div class="d-flex align-items-center">
                     <div class="icon-box bg-primary text-white me-3"><i class="fas fa-coins"></i></div>
                     <div>
                         <small class="text-muted fw-bold">TODAY'S SALES</small>
-                        <h4 class="fw-bold mb-0">Rs <?= number_format($today_sales) ?></h4>
+                        <h4 class="fw-bold mb-0">Rs <?= number_format($kpi['today_sales']) ?></h4>
                     </div>
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
+        <div class="col-xl col-md-4 col-sm-6">
             <div class="card stat-card p-3 border-start border-4 border-success">
                 <div class="d-flex align-items-center">
                     <div class="icon-box bg-success text-white me-3"><i class="fas fa-chart-line"></i></div>
                     <div>
                         <small class="text-muted fw-bold">MONTH SALES</small>
-                        <h4 class="fw-bold mb-0">Rs <?= number_format($month_sales) ?></h4>
+                        <h4 class="fw-bold mb-0">Rs <?= number_format($kpi['month_sales']) ?></h4>
                     </div>
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
+        <div class="col-xl col-md-4 col-sm-6">
+            <div class="card stat-card p-3 border-start border-4 border-purchase">
+                <div class="d-flex align-items-center">
+                    <div class="icon-box bg-purchase text-white me-3"><i class="fas fa-shopping-bag"></i></div>
+                    <div>
+                        <small class="text-muted fw-bold">PURCHASES</small>
+                        <h4 class="fw-bold mb-0">Rs <?= number_format($kpi['month_purchases']) ?></h4>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl col-md-6 col-sm-6">
             <div class="card stat-card p-3 border-start border-4 border-danger">
                 <div class="d-flex align-items-center">
                     <div class="icon-box bg-danger text-white me-3"><i class="fas fa-user-clock"></i></div>
@@ -180,7 +195,7 @@ $stmt->bind_param("i", $owner_id); $stmt->execute(); $branch_health = $stmt->get
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
+        <div class="col-xl col-md-6 col-sm-12">
             <div class="card stat-card p-3 border-start border-4 border-warning">
                 <div class="d-flex align-items-center">
                     <div class="icon-box bg-warning text-white me-3"><i class="fas fa-box-open"></i></div>
@@ -196,7 +211,13 @@ $stmt->bind_param("i", $owner_id); $stmt->execute(); $branch_health = $stmt->get
     <div class="row g-4 mb-5">
         <div class="col-lg-8">
             <div class="chart-container">
-                <h6 class="fw-bold mb-4 text-uppercase small text-muted">Sales Performance (30 Days)</h6>
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h6 class="fw-bold mb-0 text-uppercase small text-muted">Cash Flow (30 Days)</h6>
+                    <div class="small">
+                        <span class="me-3"><i class="fas fa-circle text-primary me-1"></i> Sales</span>
+                        <span><i class="fas fa-circle text-purple me-1" style="color: #ff0000;"></i> Purchases</span>
+                    </div>
+                </div>
                 <div style="height: 300px;"><canvas id="salesTrendChart"></canvas></div>
             </div>
         </div>
@@ -217,7 +238,7 @@ $stmt->bind_param("i", $owner_id); $stmt->execute(); $branch_health = $stmt->get
                 </div>
                 <div class="table-responsive">
                     <table class="table table-hover mb-0 align-middle">
-                        <thead class="bg-dark">
+                        <thead class="table-light">
                             <tr>
                                 <th class="border-0">Order ID</th>
                                 <th class="border-0">Branch</th>
@@ -232,7 +253,7 @@ $stmt->bind_param("i", $owner_id); $stmt->execute(); $branch_health = $stmt->get
                                 <td><?= htmlspecialchars($sale['branch']) ?></td>
                                 <td class="fw-bold">Rs <?= number_format($sale['total_amount']) ?></td>
                                 <td>
-                                    <span class="badge badge <?= $sale['payment_method'] === 'Cash' ? 'bg-success' : 'bg-warning' ?>">
+                                    <span class="badge <?= $sale['payment_method'] === 'Cash' ? 'bg-success text-success' : 'bg-warning text-warning' ?>" style="background-color: rgba(0,0,0,0.05);">
                                         <?= $sale['payment_method'] ?>
                                     </span>
                                 </td>
@@ -264,9 +285,9 @@ $stmt->bind_param("i", $owner_id); $stmt->execute(); $branch_health = $stmt->get
                                 <td>Rs <?= number_format($bh['total_sales']) ?></td>
                                 <td>
                                     <?php if ($bh['low_stock_count'] > 0): ?>
-                                        <span class="badge bg-danger"><?= $bh['low_stock_count'] ?> Low Stock</span>
+                                        <span class="badge bg-danger text-danger" style="background-color: #fee2e2;"><?= $bh['low_stock_count'] ?> Low Stock</span>
                                     <?php else: ?>
-                                        <span class="badge bg-success">OK</span>
+                                        <span class="badge bg-success text-success" style="background-color: #dcfce7;">OK</span>
                                     <?php endif; ?>
                                 </td>
                             </tr>
@@ -280,33 +301,45 @@ $stmt->bind_param("i", $owner_id); $stmt->execute(); $branch_health = $stmt->get
 </div>
 
 <script>
-// Main Sales Line Chart
 const ctxTrend = document.getElementById('salesTrendChart').getContext('2d');
 new Chart(ctxTrend, {
     type: 'line',
     data: {
-        labels: <?= json_encode($sales_trend_labels) ?>,
-        datasets: [{
-            data: <?= json_encode($sales_trend_data) ?>,
-            borderColor: '#4f46e5',
-            backgroundColor: 'rgba(79, 70, 229, 0.1)',
-            fill: true,
-            tension: 0.4,
-            pointRadius: 2
-        }]
+        labels: <?= json_encode($trend_labels) ?>,
+        datasets: [
+            {
+                label: 'Sales',
+                data: <?= json_encode($sales_trend_data) ?>,
+                borderColor: '#4f46e5',
+                backgroundColor: 'rgba(79, 70, 229, 0.1)',
+                fill: true,
+                tension: 0.4,
+                pointRadius: 3
+            },
+            {
+                label: 'Purchases',
+                data: <?= json_encode($purchase_trend_data) ?>,
+                borderColor: '#fa0000',
+                backgroundColor: 'rgba(139, 92, 246, 0.1)',
+                fill: true,
+                tension: 0.4,
+                pointRadius: 3
+            }
+        ]
     },
     options: {
         responsive: true,
         maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
+        plugins: { 
+            legend: { display: false } 
+        },
         scales: {
             x: { grid: { display: false } },
-            y: { border: { dash: [5,5] } }
+            y: { border: { dash: [5,5] }, beginAtZero: true }
         }
     }
 });
 
-// Payment Doughnut Chart
 new Chart(document.getElementById('paymentChart'), {
     type: 'doughnut',
     data: {

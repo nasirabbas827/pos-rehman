@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Jan 18, 2026 at 09:24 AM
+-- Generation Time: Feb 03, 2026 at 06:35 AM
 -- Server version: 10.4.28-MariaDB
 -- PHP Version: 8.2.4
 
@@ -195,11 +195,11 @@ CREATE TABLE `products` (
 --
 
 INSERT INTO `products` (`id`, `branch_id`, `barcode_id`, `name`, `description`, `price`, `quantity`, `low_stock_threshold`, `image`, `created_at`, `category_id`, `unit`) VALUES
-(32, 1, '507809066663', 'Smartphone X10', 'Latest 5G smartphone with AMOLED display', 75000.00, 1, 10, 'prod_68fb2ad8c56d7.jpg', '2025-10-24 12:32:51', 10, 'Liter'),
+(32, 1, '507809066663', 'Smartphone X10', 'Latest 5G smartphone with AMOLED display', 75000.00, 10, 10, 'prod_68fb2ad8c56d7.jpg', '2025-10-24 12:32:51', 10, 'Liter'),
 (33, 1, '0640947281089', 'Platinum Cigarate', 'High Nicotine', 100.00, 40, 20, 'prod_68fb2ad8c56d7.jpg', '2025-10-24 12:32:51', 1, 'Milliliter'),
 (34, 1, '562391875432', 'Bluetooth Headphones', 'Noise cancelling wireless headphones', 8500.00, 25, 0, 'prod_68fb2ad8c56d7.jpg', '2025-10-24 12:32:51', 1, 'pcs'),
 (36, 1, '993457812365', 'LED TV 42\"', 'Full HD Smart LED TV', 65000.00, 8, 0, 'prod_68fb2ad8c56d7.jpg', '2025-10-24 12:32:51', 1, 'pcs'),
-(37, 1, '328459781246', 'Wireless Mouse', 'Ergonomic mouse with 2.4GHz receiver', 2500.00, 40, 0, 'prod_68fb2ad8c56d7.jpg', '2025-10-24 12:32:51', 1, 'pcs'),
+(37, 1, '328459781246', 'Wireless Mouse', 'Ergonomic mouse with 2.4GHz receiver', 2500.00, 50, 10, 'prod_68fb2ad8c56d7.jpg', '2025-10-24 12:32:51', 1, 'Piece'),
 (38, 1, '679845231987', 'Gaming Keyboard', 'RGB mechanical gaming keyboard', 9500.00, 4, 0, 'prod_68fb2ad8c56d7.jpg', '2025-10-24 12:32:51', 1, 'pcs'),
 (39, 1, '234987561234', 'Power Bank 20000mAh', 'Fast charging portable power bank', 4500.00, 16, 0, 'prod_68fb2ad8c56d7.jpg', '2025-10-24 12:32:51', 1, 'pcs'),
 (40, 1, '892374659812', 'Digital Camera Z200', 'Compact digital camera with 4K recording', 88000.00, 2, 0, 'prod_68fb2ad8c56d7.jpg', '2025-10-24 12:32:51', 1, 'pcs'),
@@ -222,6 +222,62 @@ INSERT INTO `products` (`id`, `branch_id`, `barcode_id`, `name`, `description`, 
 (57, 1, '781239654871', 'Vacuum Cleaner', 'Bagless dry vacuum cleaner', 14500.00, 12, 0, 'prod_68fb2ad8c56d7.jpg', '2025-10-24 12:32:51', 3, 'pcs'),
 (58, 1, '395841278954', 'Iron', 'Steam iron with non-stick soleplate', 3000.00, 25, 0, 'prod_68fb2ad8c56d7.jpg', '2025-10-24 12:32:51', 3, 'pcs'),
 (59, 1, '978456123985', 'Refrigerator', 'Double door fridge 300L', 89000.00, 7, 0, 'prod_68fb2ad8c56d7.jpg', '2025-10-24 12:32:51', 3, 'pcs');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `purchases`
+--
+
+CREATE TABLE `purchases` (
+  `id` int(11) NOT NULL,
+  `branch_id` int(11) NOT NULL,
+  `manager_id` int(11) DEFAULT NULL,
+  `supplier_name` varchar(150) NOT NULL,
+  `supplier_phone` varchar(20) DEFAULT NULL,
+  `supplier_email` varchar(100) DEFAULT NULL,
+  `purchase_date` datetime DEFAULT current_timestamp(),
+  `invoice_number` varchar(100) DEFAULT NULL,
+  `total_amount` decimal(12,2) NOT NULL DEFAULT 0.00,
+  `discount` decimal(10,2) DEFAULT 0.00,
+  `grand_total` decimal(12,2) NOT NULL DEFAULT 0.00,
+  `payment_status` enum('pending','partial','paid') DEFAULT 'pending',
+  `payment_method` enum('Cash','Bank','Credit','Mobile') DEFAULT 'Cash',
+  `created_at` datetime DEFAULT current_timestamp(),
+  `updated_at` datetime DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `purchases`
+--
+
+INSERT INTO `purchases` (`id`, `branch_id`, `manager_id`, `supplier_name`, `supplier_phone`, `supplier_email`, `purchase_date`, `invoice_number`, `total_amount`, `discount`, `grand_total`, `payment_status`, `payment_method`, `created_at`, `updated_at`) VALUES
+(1, 1, 1, 'NASIR ABBAS', '03176526827', 'nasiryt.827@gmail.com', '2026-02-03 10:16:54', 'xs', 25000.00, 0.00, 25000.00, 'pending', 'Cash', '2026-02-03 10:16:54', '2026-02-03 10:16:54'),
+(2, 1, 1, 'NASIR ABBAS', '03176526827', 'nasiryt.827@gmail.com', '2026-02-03 10:34:07', 'dfadsf', 675000.00, 0.00, 675000.00, 'pending', 'Mobile', '2026-02-03 10:34:07', '2026-02-03 10:34:07');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `purchase_items`
+--
+
+CREATE TABLE `purchase_items` (
+  `id` int(11) NOT NULL,
+  `purchase_id` int(11) NOT NULL,
+  `product_id` int(11) NOT NULL,
+  `quantity` int(11) NOT NULL,
+  `unit_price` decimal(10,2) NOT NULL,
+  `discount` decimal(10,2) DEFAULT 0.00,
+  `line_total` decimal(12,2) GENERATED ALWAYS AS (`quantity` * `unit_price` - `discount`) STORED
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `purchase_items`
+--
+
+INSERT INTO `purchase_items` (`id`, `purchase_id`, `product_id`, `quantity`, `unit_price`, `discount`) VALUES
+(1, 1, 37, 10, 2500.00, 0.00),
+(2, 2, 32, 9, 75000.00, 0.00);
 
 -- --------------------------------------------------------
 
@@ -404,6 +460,22 @@ ALTER TABLE `products`
   ADD KEY `fk_product_category` (`category_id`);
 
 --
+-- Indexes for table `purchases`
+--
+ALTER TABLE `purchases`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `branch_id` (`branch_id`),
+  ADD KEY `manager_id` (`manager_id`);
+
+--
+-- Indexes for table `purchase_items`
+--
+ALTER TABLE `purchase_items`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `purchase_id` (`purchase_id`),
+  ADD KEY `product_id` (`product_id`);
+
+--
 -- Indexes for table `sales`
 --
 ALTER TABLE `sales`
@@ -482,6 +554,18 @@ ALTER TABLE `products`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=65;
 
 --
+-- AUTO_INCREMENT for table `purchases`
+--
+ALTER TABLE `purchases`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+
+--
+-- AUTO_INCREMENT for table `purchase_items`
+--
+ALTER TABLE `purchase_items`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+
+--
 -- AUTO_INCREMENT for table `sales`
 --
 ALTER TABLE `sales`
@@ -546,6 +630,20 @@ ALTER TABLE `managers`
 ALTER TABLE `products`
   ADD CONSTRAINT `fk_product_category` FOREIGN KEY (`category_id`) REFERENCES `categories` (`id`),
   ADD CONSTRAINT `products_ibfk_1` FOREIGN KEY (`branch_id`) REFERENCES `branches` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `purchases`
+--
+ALTER TABLE `purchases`
+  ADD CONSTRAINT `purchases_ibfk_1` FOREIGN KEY (`branch_id`) REFERENCES `branches` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `purchases_ibfk_2` FOREIGN KEY (`manager_id`) REFERENCES `managers` (`id`) ON DELETE SET NULL;
+
+--
+-- Constraints for table `purchase_items`
+--
+ALTER TABLE `purchase_items`
+  ADD CONSTRAINT `purchase_items_ibfk_1` FOREIGN KEY (`purchase_id`) REFERENCES `purchases` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `purchase_items_ibfk_2` FOREIGN KEY (`product_id`) REFERENCES `products` (`id`);
 
 --
 -- Constraints for table `sales`

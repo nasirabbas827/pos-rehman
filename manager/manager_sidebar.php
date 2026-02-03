@@ -139,6 +139,16 @@
         <i class="fas fa-receipt"></i> Sales History
       </a>
     </li>
+    <li class="nav-item">
+      <a class="nav-link" href="purchases.php">
+        <i class="fas fa-receipt"></i> Purchase
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link" href="purchase_history.php">
+        <i class="fas fa-receipt"></i> Purchase History
+      </a>
+    </li>
 
     <li class="nav-item">
       <a class="nav-link" href="notifications.php">
@@ -194,10 +204,20 @@
       </li>
 
       <li class="nav-item">
-        <a class="nav-link" href="sales_history.php">
-          <i class="fas fa-receipt"></i> Sales History
-        </a>
-      </li>
+      <a class="nav-link" href="sales_history.php">
+        <i class="fas fa-receipt"></i> Sales History
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link" href="purchases.php">
+        <i class="fas fa-receipt"></i> Purchase
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link" href="purchase_history.php">
+        <i class="fas fa-receipt"></i> Purchase History
+      </a>
+    </li>
 
       <li class="nav-item">
         <a class="nav-link" href="notifications.php">

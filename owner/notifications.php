@@ -20,7 +20,7 @@ $res_sales = $conn->query("
     ORDER BY s.sale_date DESC LIMIT 5
 ");
 
-// 2. Low Stock Alerts (Across all branches)
+// 2. Low Stock Alerts
 $res_stock = $conn->query("
     SELECT p.*, b.name as branch_name 
     FROM products p 
@@ -29,7 +29,7 @@ $res_stock = $conn->query("
     ORDER BY p.quantity ASC LIMIT 5
 ");
 
-// 3. New Staff/Salespersons (Across all branches)
+// 3. New Staff/Salespersons
 $res_staff = $conn->query("
     SELECT sp.*, b.name as branch_name 
     FROM salespersons sp 
@@ -38,7 +38,7 @@ $res_staff = $conn->query("
     ORDER BY sp.created_at DESC LIMIT 5
 ");
 
-// 4. Khata Records (Recent Credit/Debit across all branches)
+// 4. Khata Records
 $res_khata = $conn->query("
     SELECT k.*, c.name as customer_name, b.name as branch_name 
     FROM khata k 
@@ -48,7 +48,7 @@ $res_khata = $conn->query("
     ORDER BY k.created_at DESC LIMIT 5
 ");
 
-// 5. Recent Customers (Across all branches)
+// 5. Recent Customers
 $res_cust = $conn->query("
     SELECT c.*, b.name as branch_name 
     FROM customers c 
@@ -57,11 +57,20 @@ $res_cust = $conn->query("
     ORDER BY c.created_at DESC LIMIT 5
 ");
 
-// 6. New Categories (Added by this Owner)
+// 6. New Categories
 $res_cats = $conn->query("
     SELECT * FROM categories 
     WHERE owner_id = $owner_id 
     ORDER BY created_at DESC LIMIT 5
+");
+
+// 7. NEW: Recent Purchases (Inventory Added)
+$res_purchases = $conn->query("
+    SELECT p.*, b.name as branch_name 
+    FROM purchases p 
+    JOIN branches b ON p.branch_id = b.id 
+    WHERE b.owner_id = $owner_id 
+    ORDER BY p.purchase_date DESC LIMIT 5
 ");
 ?>
 
@@ -72,6 +81,7 @@ $res_cats = $conn->query("
     <title>Owner Notifications Center</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         body { background-color: #f8fafc; font-family: 'Inter', sans-serif; margin-left: 280px; }
         .notif-card { border: none; border-radius: 12px; background: #fff; height: 100%; transition: 0.3s; border: 1px solid #e2e8f0; }
@@ -83,6 +93,10 @@ $res_cats = $conn->query("
         .time-label { font-size: 0.7rem; color: #94a3b8; font-weight: 500; }
         .notif-title { font-size: 0.9rem; font-weight: 600; color: #1e293b; margin-bottom: 2px; }
         .notif-sub { font-size: 0.8rem; color: #64748b; }
+        
+        /* Purchase specific color */
+        .bg-indigo { background-color: #e0e7ff; color: #4338ca; }
+
         @media (max-width: 992px) { body { margin-left: 0; } }
     </style>
 </head>
@@ -99,7 +113,7 @@ $res_cats = $conn->query("
     </div>
 
     <div class="row g-4">
-        <div class="col-md-4">
+        <div class="col-lg-4 col-md-6">
             <div class="card notif-card">
                 <div class="card-header bg-white py-3 border-0">
                     <h6 class="mb-0 fw-bold"><i class="fas fa-shopping-cart text-primary me-2"></i>Global Sales</h6>
@@ -120,7 +134,28 @@ $res_cats = $conn->query("
             </div>
         </div>
 
-        <div class="col-md-4">
+        <div class="col-lg-4 col-md-6">
+            <div class="card notif-card">
+                <div class="card-header bg-white py-3 border-0">
+                    <h6 class="mb-0 fw-bold"><i class="fas fa-truck-loading text-indigo me-2"></i>Inventory Purchases</h6>
+                </div>
+                <div class="card-body p-0">
+                    <?php while($p = $res_purchases->fetch_assoc()): ?>
+                    <div class="notif-item">
+                        <div class="icon-box bg-indigo bg-opacity-10 text-indigo"><i class="fas fa-file-import small"></i></div>
+                        <div>
+                            <span class="branch-badge"><?= $p['branch_name'] ?></span>
+                            <div class="notif-title">Rs <?= number_format($p['grand_total'],2) ?></div>
+                            <div class="notif-sub"><?= htmlspecialchars($p['supplier_name']) ?> • Inv: <?= $p['invoice_number'] ?></div>
+                            <div class="time-label"><?= date('M d, h:i A', strtotime($p['purchase_date'])) ?></div>
+                        </div>
+                    </div>
+                    <?php endwhile; ?>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4 col-md-6">
             <div class="card notif-card">
                 <div class="card-header bg-white py-3 border-0">
                     <h6 class="mb-0 fw-bold"><i class="fas fa-exclamation-triangle text-danger me-2"></i>Stock Alerts</h6>
@@ -133,7 +168,7 @@ $res_cats = $conn->query("
                             <span class="branch-badge"><?= $st['branch_name'] ?></span>
                             <div class="notif-title"><?= htmlspecialchars($st['name']) ?></div>
                             <div class="notif-sub text-danger fw-bold">Only <?= $st['quantity'] ?> left</div>
-                            <div class="time-label">Check Inventory</div>
+                            <div class="time-label">Action Required</div>
                         </div>
                     </div>
                     <?php endwhile; ?>
@@ -141,7 +176,7 @@ $res_cats = $conn->query("
             </div>
         </div>
 
-        <div class="col-md-4">
+        <div class="col-lg-4 col-md-6">
             <div class="card notif-card">
                 <div class="card-header bg-white py-3 border-0">
                     <h6 class="mb-0 fw-bold"><i class="fas fa-file-invoice-dollar text-warning me-2"></i>Recent Khata</h6>
@@ -162,7 +197,7 @@ $res_cats = $conn->query("
             </div>
         </div>
 
-        <div class="col-md-4">
+        <div class="col-lg-4 col-md-6">
             <div class="card notif-card">
                 <div class="card-header bg-white py-3 border-0">
                     <h6 class="mb-0 fw-bold"><i class="fas fa-user-plus text-info me-2"></i>New Customers</h6>
@@ -183,7 +218,7 @@ $res_cats = $conn->query("
             </div>
         </div>
 
-        <div class="col-md-4">
+        <div class="col-lg-4 col-md-6">
             <div class="card notif-card">
                 <div class="card-header bg-white py-3 border-0">
                     <h6 class="mb-0 fw-bold"><i class="fas fa-users text-success me-2"></i>Branch Staff</h6>
@@ -204,7 +239,7 @@ $res_cats = $conn->query("
             </div>
         </div>
 
-        <div class="col-md-4">
+        <div class="col-lg-4 col-md-6">
             <div class="card notif-card">
                 <div class="card-header bg-white py-3 border-0">
                     <h6 class="mb-0 fw-bold"><i class="fas fa-th-large text-secondary me-2"></i>My Categories</h6>

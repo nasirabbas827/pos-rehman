@@ -149,6 +149,11 @@
     </li>
 
     <li class="nav-item">
+      <a class="nav-link <?= $page=='owner_purchase_history.php'?'active':'' ?>" href="owner_purchase_history.php">
+        <i class="fas fa-chart-line me-2"></i> Purchase History
+      </a>
+    </li>
+    <li class="nav-item">
       <a class="nav-link <?= $page=='sales_history.php'?'active':'' ?>" href="sales_history.php">
         <i class="fas fa-chart-line me-2"></i> Sales History
       </a>
@@ -185,6 +190,7 @@
       <li><a class="nav-link" href="products.php"><i class="fas fa-box me-2"></i> Products</a></li>
       <li><a class="nav-link" href="salespersons.php"><i class="fas fa-user-tag me-2"></i> Sales Person</a></li>
       <li><a class="nav-link" href="customers.php"><i class="fas fa-users me-2"></i> Customers</a></li>
+      <li><a class="nav-link" href="owner_purchase_history.php"><i class="fas fa-chart-line me-2"></i> Sales History</a></li>
       <li><a class="nav-link" href="sales_history.php"><i class="fas fa-chart-line me-2"></i> Sales History</a></li>
       <li><a class="nav-link" href="notifications.php"><i class="fas fa-bell me-2"></i> Notifications</a></li>
       <li><a class="nav-link text-danger" href="logout.php"><i class="fas fa-sign-out-alt me-2"></i> Logout</a></li>
